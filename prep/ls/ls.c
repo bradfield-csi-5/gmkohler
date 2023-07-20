@@ -149,7 +149,7 @@ void simple_printer(const struct dirent *dir) { printf("%s\n", dir->d_name); }
 
 bool print_all_dirs(const char *dirname) { return true; }
 bool omit_dotted_dirs(const char *dirname) {
-  return *dirname == '.' ? false : true;
+  return dirname[0] != '.';
 }
 struct options *init_opts(int argc, char **argv) {
   int opt;
