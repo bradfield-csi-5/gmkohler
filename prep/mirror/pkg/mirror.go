@@ -2,7 +2,7 @@ package pkg
 
 import (
 	"fmt"
-	"io"
+	"golang.org/x/net/html"
 	"net/http"
 	"net/url"
 	"os"
@@ -15,9 +15,14 @@ func Mirror(webPage string, outDir string) error {
 	if err != nil {
 		return fmt.Errorf("error fetching url %s: %v\n", webPage, err)
 	}
-	body, err := io.ReadAll(resp.Body)
+	// in theory, we could check content type first, but I think you have to
+	// read the body to do that.
+	domBody, err := html.Parse(resp.Body)
 	if err != nil {
-		return fmt.Errorf("error reading response body: %v\n", err)
+		return fmt.Errorf(
+			"error parsing response body as HTML: %v\n",
+			err,
+		)
 	}
 	// TODO: decide how to handle "directory exists".  For now,
 	//  we fail (simple), but maybe we could just remove its contents
@@ -41,7 +46,13 @@ func Mirror(webPage string, outDir string) error {
 		fileName = "index.html"
 	}
 	fp := filepath.Join(outDir, u.Path, fileName)
-	err = os.WriteFile(fp, body, os.ModePerm)
+	// TODO: detect existing files to avoid overwriting / circular graph issues
+	f, err := os.Create(fp)
+	if err != nil {
+		return fmt.Errorf("error opening file %q: %v\n", fp, err)
+	}
+
+	err = html.Render(f, domBody)
 	if err != nil {
 		return fmt.Errorf("error writing file %s: %v\n", fp, err)
 	}
