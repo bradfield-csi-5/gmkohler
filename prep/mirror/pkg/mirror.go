@@ -61,7 +61,7 @@ func Mirror(u *url.URL, data *MirrorData) error {
 		fmt.Printf("found %d links\n", len(links))
 	}
 
-	dir, fName := makePath(data.outDir, u.Path, exts[0])
+	dir, fName := makePathFromUrl(data.outDir, u.Path, exts[0])
 	fPath := path.Join(dir, fName)
 	err = os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
@@ -99,34 +99,6 @@ func Mirror(u *url.URL, data *MirrorData) error {
 	}
 
 	return nil
-}
-
-// makePath builds a file path from the target directory outDir and a URL
-// path uPath.  The function signature is intended to be similar to path.Split,
-// which this function leans on.
-// examples:
-// 		makePath("./mirrored", "", ".html") ("/mirrored", "index.html")
-// 		makePath("./mirrored", "/courses/ssba", .html") (
-//			"/mirrored/courses",
-//			"ssba.html",
-//		)
-
-// TODO: unit testing
-func makePath(outDir string, uPath string, ext string) (
-	dir string,
-	fileName string,
-) {
-	dir, fileName = path.Split(uPath)
-	// FIXME: only name the root-root "index" otherwise take the last of the
-	//  directory and append ext thereon
-	if fileName == "" {
-		fileName = "index"
-	}
-	if path.Ext(fileName) == "" {
-		fileName += ext
-	}
-	dir = path.Join(outDir, dir)
-	return
 }
 
 // fetchPage fetches u and parses it as an HTML document, returning the root or
