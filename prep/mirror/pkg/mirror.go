@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"sync"
 )
 
 const (
@@ -18,23 +19,35 @@ const (
 	contentTypeHtml   = "text/html;"
 	hrefMailto        = "mailto:"
 	tagAnchor         = "a"
+	tagImage          = "img"
 	tagLink           = "link"
 	tagScript         = "script"
 )
 
+// link holds a URL to be fetched and an attr whose Val should be modified
+// with a filepath corresponding to the URL name
+type link struct {
+	url  *url.URL
+	attr *html.Attribute
+}
+
 // Mirror writes the web page at u to data.outDir, and if the web page is HTML,
-// writes all links of the same domain to data.outDir
-//
-// TODO: control access to data from one goroutine when we make this concurrent
-func Mirror(u *url.URL, data *MirrorData) error {
+// writes all the document's links within the same domain to data.outDir
+func Mirror(
+	u *url.URL,
+	data *MirrorData,
+	wg *sync.WaitGroup,
+) error {
+	defer wg.Done()
 	if data.Seen(u) {
 		return nil
 	}
+	fmt.Printf("mirroring %s", u.String())
 	resp, err := fetchPage(u)
 	if err != nil {
 		return fmt.Errorf("error fetching web page %v: %v\n", u, err)
 	}
-	data.MarkSeen(u)
+	var writeToFile writeProtocol = httpResponseWriteProtocol(resp)
 	contentType := resp.Header.Get(headerContentType)
 	exts, err := mime.ExtensionsByType(contentType)
 	if err != nil || exts == nil {
@@ -44,8 +57,11 @@ func Mirror(u *url.URL, data *MirrorData) error {
 			err,
 		)
 	}
-	var writePage writeProtocol = httpResponseWriteProtocol(resp)
-	var links []*url.URL
+	dir, fName := makePathFromUrl(data.outDir, u.Path, exts[0])
+	fPath := path.Join(dir, fName)
+	data.MarkSeen(u, fPath)
+
+	var links []*link
 	if strings.HasPrefix(contentType, contentTypeHtml) {
 		// this logic is specific for HTML pages — we need to parse the document
 		// and comb for more links
@@ -56,13 +72,51 @@ func Mirror(u *url.URL, data *MirrorData) error {
 				err,
 			)
 		}
-		writePage = htmlNodeWriteProtocol(domBody)
+		writeToFile = htmlNodeWriteProtocol(domBody)
 		findLinks(domBody, u, &links, data)
-		fmt.Printf("found %d links\n", len(links))
+
+		fmt.Printf("found %d links in %s\n", len(links), u.String())
 	}
 
-	dir, fName := makePathFromUrl(data.outDir, u.Path, exts[0])
-	fPath := path.Join(dir, fName)
+	var childWg sync.WaitGroup
+	for _, l := range links {
+		// many links are relative.  Here we infer from previous link the
+		// host and scheme so that we can successfully fetch it.
+		if l.url.Host == "" {
+			l.url.Host = u.Host
+		}
+		if l.url.Scheme == "" {
+			l.url.Scheme = u.Scheme
+		}
+		childWg.Add(1)
+		go func(u *url.URL) {
+			err = Mirror(u, data, &childWg)
+			if err != nil {
+				fmt.Fprintf(
+					os.Stderr,
+					"error mirroring page %v: %v\n",
+					u,
+					err,
+				)
+			}
+		}(l.url)
+	}
+
+	childWg.Wait()
+	for j := range links {
+		l := links[j]
+		localPath, err := data.FilePathFor(l.url)
+		if err != nil {
+			fmt.Fprintf(
+				os.Stderr,
+				"error getting file path for %q\n",
+				l.url.String(),
+			)
+		} else {
+			l.attr.Val = localPath
+		}
+	}
+
 	err = os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("error creating directory %q: %v\n", dir, err)
@@ -72,30 +126,9 @@ func Mirror(u *url.URL, data *MirrorData) error {
 	if err != nil {
 		return fmt.Errorf("error opening file %q: %v\n", fPath, err)
 	}
-	err = writePage(f)
+	err = writeToFile(f)
 	if err != nil {
 		return fmt.Errorf("error writing file %s: %v\n", fPath, err)
-	}
-
-	for _, l := range links {
-		// many links are relative.  Here we infer from previous link the
-		// host and scheme so that we can successfully fetch it.
-		if l.Host == "" {
-			l.Host = u.Host
-		}
-		if l.Scheme == "" {
-			l.Scheme = u.Scheme
-		}
-		err = Mirror(l, data)
-		if err != nil {
-			fmt.Fprintf(
-				os.Stderr,
-				"error mirroring page %v: %v\n",
-				l,
-				err,
-			)
-			continue
-		}
 	}
 
 	return nil
@@ -125,11 +158,17 @@ func parseHtml(r *http.Response) (*html.Node, error) {
 	return domBody, nil
 }
 
-// findLinks looks for links within n with the specified domain
+// findLinks collects links within n with the same Host as hostUrl
+// right now, it is serial because it's all in-memory and the network requests
+// should be more of a bottleneck, but we could probably make it concurrent.
+// This can also be DRYed out with a helper that takes an *[]*html.Attribute
+// because most of/the/logic is/the/same, save for some special filtering in the
+// anchor tags and a different choice of attribute name for where we know the
+// link will be encoded.
 func findLinks(
 	n *html.Node,
 	hostUrl *url.URL,
-	urls *[]*url.URL,
+	links *[]*link,
 	data *MirrorData,
 ) {
 	if n.Type == html.ElementNode {
@@ -141,7 +180,7 @@ func findLinks(
 		// or to other assets (<link>)
 		switch n.Data {
 		case tagAnchor:
-			for _, a := range n.Attr {
+			for j, a := range n.Attr {
 				if a.Key != attrHref {
 					continue
 				}
@@ -160,17 +199,16 @@ func findLinks(
 					)
 					continue
 				}
-				// blank host is a relative link; fetchPage will fix it
-				if data.Seen(u) {
-					continue
-				}
-				if hasSameHost(u, hostUrl) {
-					fmt.Printf("Found link: %q\n", u.String())
-					*urls = append(*urls, u)
+				if data.BelongsToSite(u) {
+					fmt.Printf("Found anchor link: %q\n", u.String())
+					*links = append(*links, &link{
+						url:  u,
+						attr: &n.Attr[j], // need element access later
+					})
 				}
 			}
 		case tagScript:
-			for _, a := range n.Attr {
+			for j, a := range n.Attr {
 				if a.Key != attrSrc {
 					continue
 				}
@@ -183,16 +221,17 @@ func findLinks(
 					)
 					continue
 				}
-				if data.Seen(u) {
-					continue
-				}
-				if hasSameHost(u, hostUrl) {
+				if data.BelongsToSite(u) {
 					fmt.Printf("Found script link: %q\n", u.String())
-					*urls = append(*urls, u)
+					*links = append(*links, &link{
+						url:  u,
+						attr: &n.Attr[j], // need element access
+					})
 				}
 			}
 		case tagLink:
-			for _, a := range n.Attr {
+			for j := range n.Attr {
+				a := n.Attr[j]
 				if a.Key != attrHref {
 					continue
 				}
@@ -205,12 +244,12 @@ func findLinks(
 					)
 					continue
 				}
-				if data.Seen(u) {
-					continue
-				}
-				if hasSameHost(u, hostUrl) {
+				if data.BelongsToSite(u) {
 					fmt.Printf("Found link: %q\n", u.String())
-					*urls = append(*urls, u)
+					*links = append(*links, &link{
+						url:  u,
+						attr: &n.Attr[j], // need element access
+					})
 				}
 			}
 		default:
@@ -218,12 +257,6 @@ func findLinks(
 		}
 	}
 	for c := n.FirstChild; c != nil; c = c.NextSibling {
-		findLinks(c, hostUrl, urls, data)
+		findLinks(c, hostUrl, links, data)
 	}
-}
-
-// hasSameHost returns true if u is a relative link or u is an absolute link
-// matching original's Hostname
-func hasSameHost(u *url.URL, original *url.URL) bool {
-	return u.Hostname() == "" || u.Hostname() == original.Hostname()
 }
