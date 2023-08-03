@@ -12,8 +12,8 @@
 #       TOPIC
 #
 # slugify input to make curl/xmllint easier
-title=$(echo ${1:-} | tr " " _ | tr "[:upper:]" "[:lower:]" | awk '{print toupper(substr($0,1,1))substr($0,2)}')
-section=$(echo ${2:-} | tr " " _ | tr "[:upper:]" "[:lower:]" | awk '{print toupper(substr($0,1,1))substr($0,2)}')
+title=$(echo "${1:-}" | tr " " _ | tr "[:upper:]" "[:lower:]" | awk '{print toupper(substr($0,1,1))substr($0,2)}')
+section=$(echo "${2:-}" | tr " " _ | tr "[:upper:]" "[:lower:]" | awk '{print toupper(substr($0,1,1))substr($0,2)}')
 
 # saving the page and re-using it is a lot easier than trying to massage
 # xmllint to give me nice output
