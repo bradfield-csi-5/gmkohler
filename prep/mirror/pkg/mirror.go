@@ -251,6 +251,29 @@ func findLinks(
 					})
 				}
 			}
+		case tagImage:
+			for j := range n.Attr {
+				a := n.Attr[j]
+				if a.Key != attrSrc {
+					continue
+				}
+				u, err = url.Parse(a.Val)
+				if err != nil {
+					fmt.Fprintf(
+						os.Stderr,
+						"error parsing img src: %v\n",
+						err,
+					)
+					continue
+				}
+				if data.BelongsToSite(u) {
+					fmt.Printf("Found link: %q\n", u.String())
+					*links = append(*links, &link{
+						url:  u,
+						attr: &n.Attr[j], // need element access
+					})
+				}
+			}
 		default:
 			break
 		}
