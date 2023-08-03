@@ -3,7 +3,7 @@
 Build `cmd/mirror.go` and run it with a web page.  For example:
 
 ```sh
-go build -o /bin/mirror cmd/mirror.go
+go build -o /bin/mirror cmd/mirror/main.go
 ./mirror https://bradfieldcs.com
 open mirrored/index.htm
 ```
