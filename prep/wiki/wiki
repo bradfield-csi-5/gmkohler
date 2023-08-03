@@ -11,8 +11,21 @@
 #         K
 #       TOPIC
 #
-# The XPath selector is going to remove the boilerplate sections
-xmllint --htmlout --html --xpath '//ul[@id="mw-panel-toc-list"]/li[contains(@class, "vector-toc-level-1") and not(@id="toc-mw-content-text") and not(@id="toc-See_also") and not(@id="toc-References") and not(@id="toc-Further_reading") and not (@id="toc-External_links")]/a[@class="vector-toc-link"]/div[@class="vector-toc-text"]/text()' <(curl -sL "https://en.wikipedia.org/wiki/$1") 2>/dev/null |
+
+page=$(curl -sL "https://en.wikipedia.org/wiki/$1")
+
+# first sentence
+xmllint --htmlout --html \
+	--xpath '//div[@id="mw-content-text"]/div[@class="mw-parser-output"]/p[not(contains(@class, "mw-empty-elt"))][1]/descendant-or-self::*/text()' \
+	- <<<"$page" 2>/dev/null |
 	sed -E "s/^[[:blank:]]*([[:alnum:] ]+)[[:blank:]]*$/\1/g" | # strip whitespace
+	sed -E "s/\[[[:digit:], ]+\]//g" | # strip citations
 	sed -E "/^[[:space:]]*$/d" # remove newlines
 
+echo
+# Table of contents
+xmllint --htmlout --html \
+	--xpath  '//ul[@id="mw-panel-toc-list"]/li[contains(@class, "vector-toc-level-1") and not(@id="toc-mw-content-text") and not(@id="toc-See_also") and not(@id="toc-References") and not(@id="toc-Further_reading") and not (@id="toc-External_links")]/a[@class="vector-toc-link"]/div[@class="vector-toc-text"]/text()' \
+	- <<<"$page" 2>/dev/null |
+	sed -E "s/^[[:blank:]]*([[:alnum:] ]+)[[:blank:]]*$/\1/g" | # strip whitespace
+	sed -E "/^[[:space:]]*$/d" # remove newlines
