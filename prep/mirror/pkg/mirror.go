@@ -137,7 +137,6 @@ func Mirror(
 // fetchPage fetches u and parses it as an HTML document, returning the root or
 // any errors it encounters
 func fetchPage(u *url.URL) (*http.Response, error) {
-	// fix relative links
 	resp, err := http.Get(u.String())
 	if err != nil {
 		return nil, fmt.Errorf("error fetching url %v: %v\n", u, err)
