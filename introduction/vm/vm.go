@@ -65,9 +65,32 @@ loop:
 			registers[0] += 3
 		case Sub:
 			mutatedRegisterIdx := memory[programCounter+1]
-			addendRegisterIdx := memory[programCounter+2]
-			registers[mutatedRegisterIdx] -= registers[addendRegisterIdx]
+			minuendRegisterIdx := memory[programCounter+2]
+			registers[mutatedRegisterIdx] -= registers[minuendRegisterIdx]
 
+			registers[0] += 3
+		case Addi:
+			registerIdx := memory[programCounter+1]
+			addend := memory[programCounter+2]
+			registers[registerIdx] += addend
+
+			registers[0] += 3
+		case Subi:
+			registerIdx := memory[programCounter+1]
+			minuend := memory[programCounter+2]
+			registers[registerIdx] -= minuend
+
+			registers[0] += 3
+		case Jump:
+			registers[0] = memory[programCounter+1]
+		case Beqz:
+			registerIdx := memory[programCounter+1]
+			if registers[registerIdx] == 0 {
+				relativeOffset := memory[programCounter+2]
+				registers[0] += relativeOffset
+			}
+			// we have to process these instructions regardless of processing
+			// the offset argument
 			registers[0] += 3
 		case Halt:
 			break loop
