@@ -1,0 +1,52 @@
+#!/bin/bash
+
+# The table of contents HTML looks like this:
+# N = level (main, subsection, etc.  level 1 contains the main sections, 2 contains subsections
+# K = ordinal in table of contents (toc)
+# ul#mw-panel-toc-list
+#   li#toc-* .vector-toc-list-item .vector-toc-level-N
+#     a.vector-toc-link
+#     div .vector-toc-text
+#       span .vector-toc-numb
+#         K
+#       TOPIC
+#
+# slugify input to make curl/xmllint easier
+title=$(echo "${1:-}" | tr " " _ | tr "[:upper:]" "[:lower:]" | awk '{print toupper(substr($0,1,1))substr($0,2)}')
+section=$(echo "${2:-}" | tr " " _ | tr "[:upper:]" "[:lower:]" | awk '{print toupper(substr($0,1,1))substr($0,2)}')
+
+# saving the page and re-using it is a lot easier than trying to massage
+# xmllint to give me nice output
+page=$(curl -sL "https://en.wikipedia.org/wiki/$title")
+if [[ -z "$section" ]]; then
+	# first sentence
+	xmllint --htmlout --html \
+		--xpath '//div[@id="mw-content-text"]/div[@class="mw-parser-output"]/p[not(contains(@class, "mw-empty-elt"))][1]/descendant-or-self::*/text()' \
+		- <<<"$page" 2>/dev/null |
+		sed -E "s/^[[:blank:]]*([[:alnum:] ()]+)[[:blank:]]*$/\1/g" | # strip whitespace
+		sed -E "s/\[[[[:digit:]], ]+\]//g" | # strip citations
+		sed -E "/^[[:space:]]*$/d" # remove newlines
+
+	echo
+	# Table of contents
+	xmllint --htmlout --html \
+		  --xpath  '//ul[@id="mw-panel-toc-list"]/li[contains(@class, "vector-toc-level-1") and not(@id="toc-mw-content-text") and not(@id="toc-See_also") and not(@id="toc-References") and not(@id="toc-Further_reading") and not (@id="toc-External_links")]/a[@class="vector-toc-link"]/div[@class="vector-toc-text"]/text()' \
+		- <<<"$page" 2>/dev/null |
+		sed -E "s/^[[:blank:]]*([[:alnum:] ]+)[[:blank:]]*$/\1/g" | # strip whitespace
+		sed -E "/^[[:space:]]*$/d" # remove newlines
+	echo
+else
+	xmllint --htmlout --html \
+		  --xpath "//h2[child::span[@class='mw-headline' and @id='$section']]/following-sibling::p[1]/descendant-or-self::*/text()" \
+		- <<<"$page" 2>/dev/null  |
+		sed -E "s/^[[:blank:]]*([[:alnum:] ]+)[[:blank:]]*$/\1/g" | # strip whitespace
+		sed -E "s/\[[[:digit:], ]+\]//g" | # strip citations
+		sed -E "/^[[:space:]]*$/d" # remove newlines
+	echo
+	xmllint --htmlout --html \
+		  --xpath  "//ul[@id='toc-$section-sublist']/li[contains(@class,'vector-toc-level-2')]/a[@class='vector-toc-link']/div[@class='vector-toc-text']/text()" \
+		- <<<"$page" 2>/dev/null |
+		sed -E "s/^[[:blank:]]*([[:alnum:] ()]+)[[:blank:]]*$/\1/g" | # strip whitespace
+		sed -E "/^[[:space:]]*$/d" # remove newlines
+	echo
+fi
