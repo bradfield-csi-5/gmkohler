@@ -28,10 +28,10 @@ type Payment struct {
 
 type User struct {
 	id       UserId
-	name     string
 	age      int
 	address  Address
 	payments []Payment
+	name     string
 }
 
 func AverageAge(users UserMap) float64 {
@@ -88,7 +88,13 @@ func LoadData() UserMap {
 		age, _ := strconv.Atoi(line[2])
 		address := line[3]
 		zip, _ := strconv.Atoi(line[3])
-		users[UserId(id)] = &User{UserId(id), name, age, Address{address, zip}, []Payment{}}
+		users[UserId(id)] = &User{
+			id:       UserId(id),
+			age:      age,
+			address:  Address{address, zip},
+			payments: []Payment{},
+			name:     name,
+		}
 	}
 
 	f, err = os.Open("payments.csv")
