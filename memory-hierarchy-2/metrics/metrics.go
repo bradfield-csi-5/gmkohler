@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"encoding/csv"
+	"io"
 	"log"
 	"math"
 	"os"
@@ -13,9 +14,9 @@ type UserMap map[UserId]*User
 type CentsAmount uint64
 
 type User struct {
-	id       UserId
 	age      int
 	payments []CentsAmount
+	id       UserId
 }
 
 func AverageAge(users UserMap) float64 {
@@ -31,8 +32,8 @@ func AveragePaymentAmount(users UserMap) float64 {
 	count := 0
 	for _, u := range users {
 		count += len(u.payments)
-		for _, p := range u.payments {
-			totalCents += p
+		for j := range u.payments {
+			totalCents += u.payments[j]
 		}
 	}
 	return float64(totalCents) / 100 / float64(count)
@@ -43,11 +44,13 @@ func StdDevPaymentAmount(users UserMap) float64 {
 	mean := AveragePaymentAmount(users)
 	squaredDiffs := 0.0
 	count := 0
+	// users is a map, don't use indexing
 	for _, u := range users {
 		count += len(u.payments)
-		for _, p := range u.payments {
+		// payments is an array, use indexing
+		for j := range u.payments {
 			// mean is a public API in dollars, so we have to convert here.
-			diff := float64(p)/100 - mean
+			diff := float64(u.payments[j])/100 - mean
 			squaredDiffs += diff * diff
 		}
 	}
@@ -59,14 +62,22 @@ func LoadData() UserMap {
 	if err != nil {
 		log.Fatalln("Unable to read users.csv", err)
 	}
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			log.Fatalln("Unable to close payments.csv", err)
+		}
+	}(f)
 	reader := csv.NewReader(f)
-	userLines, err := reader.ReadAll()
-	if err != nil {
-		log.Fatalln("Unable to parse users.csv as csv", err)
-	}
-
-	users := make(UserMap, len(userLines))
-	for _, line := range userLines {
+	users := UserMap{}
+	for {
+		line, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalln("Unable to parse users.csv as csv", err)
+		}
 		id, _ := strconv.Atoi(line[0])
 		age, _ := strconv.Atoi(line[2])
 		users[UserId(id)] = &User{
@@ -80,13 +91,22 @@ func LoadData() UserMap {
 	if err != nil {
 		log.Fatalln("Unable to read payments.csv", err)
 	}
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			log.Fatalln("Unable to close payments.csv", err)
+		}
+	}(f)
 	reader = csv.NewReader(f)
-	paymentLines, err := reader.ReadAll()
-	if err != nil {
-		log.Fatalln("Unable to parse payments.csv as csv", err)
-	}
 
-	for _, line := range paymentLines {
+	for {
+		line, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			log.Fatalln("Unable to parse payments.csv as csv", err)
+		}
 		userId, _ := strconv.Atoi(line[2])
 		paymentCents, _ := strconv.Atoi(line[0])
 		users[UserId(userId)].payments = append(
