@@ -11,11 +11,13 @@ import (
 
 type UserId int
 type UserMap map[UserId]*User
-type CentsAmount uint64
+type centsAmount uint64
+
+const dollarsToCents float64 = 100
 
 type User struct {
 	age      int
-	payments []CentsAmount
+	payments []centsAmount
 	id       UserId
 }
 
@@ -28,20 +30,12 @@ func AverageAge(users UserMap) float64 {
 }
 
 func AveragePaymentAmount(users UserMap) float64 {
-	totalCents := CentsAmount(0)
-	count := 0
-	for _, u := range users {
-		count += len(u.payments)
-		for j := range u.payments {
-			totalCents += u.payments[j]
-		}
-	}
-	return float64(totalCents) / 100 / float64(count)
+	return averagePaymentAmountCents(users) / dollarsToCents
 }
 
-// Compute the standard deviation of payment amounts
+// StdDevPaymentAmount computes the standard deviation of payment amounts
 func StdDevPaymentAmount(users UserMap) float64 {
-	mean := AveragePaymentAmount(users)
+	mean := averagePaymentAmountCents(users)
 	squaredDiffs := 0.0
 	count := 0
 	// users is a map, don't use indexing
@@ -50,11 +44,26 @@ func StdDevPaymentAmount(users UserMap) float64 {
 		// payments is an array, use indexing
 		for j := range u.payments {
 			// mean is a public API in dollars, so we have to convert here.
-			diff := float64(u.payments[j])/100 - mean
+			diff := float64(u.payments[j]) - mean
 			squaredDiffs += diff * diff
 		}
 	}
-	return math.Sqrt(squaredDiffs / float64(count))
+	return math.Sqrt(squaredDiffs/float64(count)) / dollarsToCents
+}
+
+// averagePaymentAmountCents calculates the average in cents so
+// StdDevPaymentAmount can use it without converting each of its entries to
+// dollars via division (instead dividing once at the end of that function)
+func averagePaymentAmountCents(users UserMap) float64 {
+	totalCents := centsAmount(0)
+	count := 0
+	for _, u := range users {
+		count += len(u.payments)
+		for j := range u.payments {
+			totalCents += u.payments[j]
+		}
+	}
+	return float64(totalCents) / float64(count)
 }
 
 func LoadData() UserMap {
@@ -83,7 +92,7 @@ func LoadData() UserMap {
 		users[UserId(id)] = &User{
 			id:       UserId(id),
 			age:      age,
-			payments: []CentsAmount{},
+			payments: []centsAmount{},
 		}
 	}
 
@@ -111,7 +120,7 @@ func LoadData() UserMap {
 		paymentCents, _ := strconv.Atoi(line[0])
 		users[UserId(userId)].payments = append(
 			users[UserId(userId)].payments,
-			CentsAmount(paymentCents),
+			centsAmount(paymentCents),
 		)
 	}
 
