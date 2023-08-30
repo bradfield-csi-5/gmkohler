@@ -25,7 +25,7 @@ changes you make elsewhere. However, please do not precompute the answers
 directly in the LoadData function :)
 
 You are also welcome to make minor changes to the benchmark code, so long as it
-doesn’t affect the substance of the test. You should not need to alter the code
+doesn't affect the substance of the test. You should not need to alter the code
 used to generate the test data, but this is provided for your information, and
 may be useful to know the ranges of the provided data.
 

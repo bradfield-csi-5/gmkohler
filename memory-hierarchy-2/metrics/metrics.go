@@ -40,11 +40,11 @@ func StdDevPaymentAmount(users UserMap) float64 {
 	count := 0
 	// users is a map, don't use indexing
 	for _, u := range users {
-		count += len(u.payments)
-		// payments is an array, use indexing
-		for j := range u.payments {
+		payments := u.payments
+		count += len(payments)
+		for _, p := range payments {
 			// mean is a public API in dollars, so we have to convert here.
-			diff := float64(u.payments[j]) - mean
+			diff := float64(p) - mean
 			squaredDiffs += diff * diff
 		}
 	}
@@ -58,9 +58,10 @@ func averagePaymentAmountCents(users UserMap) float64 {
 	totalCents := centsAmount(0)
 	count := 0
 	for _, u := range users {
-		count += len(u.payments)
-		for j := range u.payments {
-			totalCents += u.payments[j]
+		payments := u.payments
+		count += len(payments)
+		for _, p := range payments {
+			totalCents += p
 		}
 	}
 	return float64(totalCents) / float64(count)
