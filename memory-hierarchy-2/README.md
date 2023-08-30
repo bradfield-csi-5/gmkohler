@@ -31,3 +31,17 @@ may be useful to know the ranges of the provided data.
 
 As a stretch goal, simply try to make the program as fast as possible, using any
 techniques at your disposal!
+
+My initial stats:
+
+```
+goos: darwin
+goarch: amd64
+pkg: metrics
+cpu: Intel(R) Core(TM) i5-5257U CPU @ 2.70GHz
+BenchmarkMetrics/Average_age-4               202           6038951 ns/op
+BenchmarkMetrics/Average_payment-4            38          30553234 ns/op
+BenchmarkMetrics/Payment_stddev-4             19          59169572 ns/op
+PASS
+ok      metrics 8.095s
+```

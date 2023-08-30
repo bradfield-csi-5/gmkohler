@@ -6,68 +6,52 @@ import (
 	"math"
 	"os"
 	"strconv"
-	"time"
 )
 
 type UserId int
 type UserMap map[UserId]*User
-
-type Address struct {
-	fullAddress string
-	zip         int
-}
-
-type DollarAmount struct {
-	dollars, cents uint64
-}
-
-type Payment struct {
-	amount DollarAmount
-	time   time.Time
-}
+type CentsAmount uint64
 
 type User struct {
 	id       UserId
 	age      int
-	address  Address
-	payments []Payment
-	name     string
+	payments []CentsAmount
 }
 
 func AverageAge(users UserMap) float64 {
-	average, count := 0.0, 0.0
+	total := 0
 	for _, u := range users {
-		count += 1
-		average += (float64(u.age) - average) / count
+		total += u.age
 	}
-	return average
+	return float64(total) / float64(len(users))
 }
 
 func AveragePaymentAmount(users UserMap) float64 {
-	average, count := 0.0, 0.0
+	totalCents := CentsAmount(0)
+	count := 0
 	for _, u := range users {
+		count += len(u.payments)
 		for _, p := range u.payments {
-			count += 1
-			amount := float64(p.amount.dollars) + float64(p.amount.cents)/100
-			average += (amount - average) / count
+			totalCents += p
 		}
 	}
-	return average
+	return float64(totalCents) / 100 / float64(count)
 }
 
 // Compute the standard deviation of payment amounts
 func StdDevPaymentAmount(users UserMap) float64 {
 	mean := AveragePaymentAmount(users)
-	squaredDiffs, count := 0.0, 0.0
+	squaredDiffs := 0.0
+	count := 0
 	for _, u := range users {
+		count += len(u.payments)
 		for _, p := range u.payments {
-			count += 1
-			amount := float64(p.amount.dollars) + float64(p.amount.cents)/100
-			diff := amount - mean
+			// mean is a public API in dollars, so we have to convert here.
+			diff := float64(p)/100 - mean
 			squaredDiffs += diff * diff
 		}
 	}
-	return math.Sqrt(squaredDiffs / count)
+	return math.Sqrt(squaredDiffs / float64(count))
 }
 
 func LoadData() UserMap {
@@ -84,16 +68,11 @@ func LoadData() UserMap {
 	users := make(UserMap, len(userLines))
 	for _, line := range userLines {
 		id, _ := strconv.Atoi(line[0])
-		name := line[1]
 		age, _ := strconv.Atoi(line[2])
-		address := line[3]
-		zip, _ := strconv.Atoi(line[3])
 		users[UserId(id)] = &User{
 			id:       UserId(id),
 			age:      age,
-			address:  Address{address, zip},
-			payments: []Payment{},
-			name:     name,
+			payments: []CentsAmount{},
 		}
 	}
 
@@ -110,11 +89,10 @@ func LoadData() UserMap {
 	for _, line := range paymentLines {
 		userId, _ := strconv.Atoi(line[2])
 		paymentCents, _ := strconv.Atoi(line[0])
-		datetime, _ := time.Parse(time.RFC3339, line[1])
-		users[UserId(userId)].payments = append(users[UserId(userId)].payments, Payment{
-			DollarAmount{uint64(paymentCents / 100), uint64(paymentCents % 100)},
-			datetime,
-		})
+		users[UserId(userId)].payments = append(
+			users[UserId(userId)].payments,
+			CentsAmount(paymentCents),
+		)
 	}
 
 	return users
