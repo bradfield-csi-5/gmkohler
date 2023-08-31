@@ -10,7 +10,7 @@ import (
 )
 
 type UserAge int
-type CentsAmount uint64
+type CentsAmount uint
 
 const (
 	dollarsToCents float64 = 100
