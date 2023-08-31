@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-type UserAge int
+type UserAge uint8
 type CentsAmount uint
 
 const (
@@ -18,19 +18,19 @@ const (
 )
 
 func AverageAge(ages []UserAge) float64 {
-	acc0, acc1, acc2, acc3 := UserAge(0), UserAge(0), UserAge(0), UserAge(0)
+	acc0, acc1, acc2, acc3 := uint(0), uint(0), uint(0), uint(0)
 	count := len(ages)
 	loopEnd := count - unrollFactor
 	var j int
 	for j = 0; j < loopEnd; j += unrollFactor {
-		acc0 += ages[j]
-		acc1 += ages[j+1]
-		acc2 += ages[j+2]
-		acc3 += ages[j+3]
+		acc0 += uint(ages[j])
+		acc1 += uint(ages[j+1])
+		acc2 += uint(ages[j+2])
+		acc3 += uint(ages[j+3])
 	}
 
 	for ; j < count; j++ {
-		acc0 += ages[j]
+		acc0 += uint(ages[j])
 	}
 	return float64(acc0+acc1+acc2+acc3) / float64(count)
 }
