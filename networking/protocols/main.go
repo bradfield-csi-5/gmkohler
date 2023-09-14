@@ -34,7 +34,7 @@ type packetHeader struct {
 	LengthUntruncated uint32
 }
 
-type macAddress [6]byte
+type macAddress [6]uint8
 
 type macHeader struct {
 	MacDestination macAddress
@@ -49,24 +49,53 @@ func (m *macHeader) IPv6() bool {
 	return m.EtherType == etherTypeIPv6
 }
 
-type ipv4Version byte
+type ipv4Version uint8
 
-func (i ipv4Version) HeaderLength() int64 {
-	return int64(i&0x0f) * 4
+// String() unpacks the byte into the two fields it represents
+func (i ipv4Version) String() string {
+	return fmt.Sprintf(
+		"{Version:%d HeaderLength:%d}",
+		i.version(),
+		i.headerLength(),
+	)
+}
+
+func (i ipv4Version) version() uint8 {
+	return uint8(i >> 4)
+}
+func (i ipv4Version) headerLength() uint8 {
+	return uint8(i&0x0f) * 4
+}
+
+type ipAddress uint32
+
+func (i ipAddress) String() string {
+	return fmt.Sprintf(
+		"%d.%d.%d.%d",
+		i&0xff000000>>24,
+		i&0x00ff0000>>16,
+		i&0x0000ff00>>8,
+		i&0x000000ff,
+	)
 }
 
 type ipv4Header struct {
-	Version        ipv4Version
-	DscpEcn        uint8
-	TotalLength    uint16
-	Identification uint16
-	FlagsAndOffset uint16
-	Ttl            uint8
-	Protocol       uint8
-	Checksum       uint16
-	SourceIp       uint32
-	DestIp         uint32
+	VersionAndHeaderLength ipv4Version
+	DscpEcn                uint8
+	TotalLength            uint16
+	Identification         uint16
+	FlagsAndOffset         uint16
+	Ttl                    uint8
+	Protocol               uint8
+	Checksum               uint16
+	SourceIp               ipAddress
+	DestIp                 ipAddress
 	// options []byte
+}
+
+func (i ipv4Header) DataLength() uint64 {
+	return uint64(
+		i.TotalLength - uint16(i.VersionAndHeaderLength.headerLength()))
 }
 
 type tcpHeader struct {
@@ -93,13 +122,16 @@ const (
 	etherTypeIPv6 = 0x86DD
 	macHeaderSize = 14
 	tcpHeaderSize = 20
+	ipHeaderSize  = 20
+	ipV4          = 4
+	tcpProtocol   = 6
 )
 
 func main() {
 	gHeader := new(globalHeader)
 	pHeader := new(packetHeader)
 	mHeader := new(macHeader)
-	//ipVersion := new(ipv4Version)
+	ipHeader := new(ipv4Header)
 	//tHeader := new(tcpHeader)
 
 	b, err := os.ReadFile("net.cap")
@@ -118,6 +150,7 @@ func main() {
 	fmt.Printf("%+v\n", gHeader)
 	numPackets := 0
 	for {
+		// Packet Header
 		err = binary.Read(buf, binary.LittleEndian, pHeader)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
@@ -129,6 +162,8 @@ func main() {
 			log.Fatalf("Packet header is truncated: %+v", pHeader)
 		}
 		fmt.Printf("Packet Header: %+v\n", pHeader)
+
+		// MAC Header
 		err = binary.Read(buf, binary.BigEndian, mHeader)
 		if err != nil {
 			log.Fatal("error parsing MAC Header: ", err)
@@ -137,8 +172,30 @@ func main() {
 			log.Fatalf("Unexpected EtherType %x", mHeader.EtherType)
 		}
 		fmt.Printf("MAC Header: %+v\n", mHeader)
+
+		// IP Header
+		err = binary.Read(buf, binary.BigEndian, ipHeader)
+		if err != nil {
+			log.Fatal("error parsing IP Header: ", err)
+		}
+		if ipHeader.VersionAndHeaderLength.version() != ipV4 {
+			log.Fatalf(
+				"unexpected IP version %d (expected %d)",
+				ipHeader.VersionAndHeaderLength.version(),
+				ipV4,
+			)
+		}
+		if ipHeader.Protocol != tcpProtocol {
+			log.Fatalf(
+				"unexpected protocol number %d (expected %d)",
+				ipHeader.Protocol,
+				tcpProtocol,
+			)
+		}
+		fmt.Printf("IP Header: %+v\n", ipHeader)
+
 		_, err = buf.Seek(
-			int64(pHeader.LengthTruncated)-macHeaderSize,
+			int64(pHeader.LengthTruncated)-macHeaderSize-ipHeaderSize,
 			io.SeekCurrent,
 		)
 		if err != nil {
