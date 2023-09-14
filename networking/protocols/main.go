@@ -34,9 +34,74 @@ type packetHeader struct {
 	LengthUntruncated uint32
 }
 
+type macAddress [6]byte
+
+type macHeader struct {
+	MacDestination macAddress
+	MacSource      macAddress
+	EtherType      uint16
+}
+
+func (m *macHeader) IPv4() bool {
+	return m.EtherType == etherTypeIPv4
+}
+func (m *macHeader) IPv6() bool {
+	return m.EtherType == etherTypeIPv6
+}
+
+type ipv4Version byte
+
+func (i ipv4Version) HeaderLength() int64 {
+	return int64(i&0x0f) * 4
+}
+
+type ipv4Header struct {
+	Version        ipv4Version
+	DscpEcn        uint8
+	TotalLength    uint16
+	Identification uint16
+	FlagsAndOffset uint16
+	Ttl            uint8
+	Protocol       uint8
+	Checksum       uint16
+	SourceIp       uint32
+	DestIp         uint32
+	// options []byte
+}
+
+type tcpHeader struct {
+	SourcePort     uint16
+	DestPort       uint16
+	SequenceNumber uint32
+	AckNumber      uint32
+	DataOffset     uint8
+	Flags          uint8
+	WindowSize     uint8
+	Checksum       uint8
+	UrgentPointer  uint8
+}
+
+func (t *tcpHeader) HeaderLength() int64 {
+	return int64(t.DataOffset>>4) * 4
+}
+func (t *tcpHeader) DataLength() int64 {
+	return t.HeaderLength() - tcpHeaderSize
+}
+
+const (
+	etherTypeIPv4 = 0x0800
+	etherTypeIPv6 = 0x86DD
+	macHeaderSize = 14
+	tcpHeaderSize = 20
+)
+
 func main() {
 	gHeader := new(globalHeader)
 	pHeader := new(packetHeader)
+	mHeader := new(macHeader)
+	//ipVersion := new(ipv4Version)
+	//tHeader := new(tcpHeader)
+
 	b, err := os.ReadFile("net.cap")
 	if err != nil {
 		panic(err)
@@ -48,7 +113,7 @@ func main() {
 		gHeader,
 	)
 	if err != nil {
-		log.Fatal("Error reading global header", err)
+		log.Fatal("Error reading global header: ", err)
 	}
 	fmt.Printf("%+v\n", gHeader)
 	numPackets := 0
@@ -58,17 +123,28 @@ func main() {
 			if errors.Is(err, io.EOF) {
 				break
 			}
-			log.Fatal("Unexpected error reading packet header", err)
+			log.Fatal("Unexpected error reading packet header: ", err)
 		}
-		numPackets++
 		if pHeader.LengthUntruncated != pHeader.LengthTruncated {
 			log.Fatalf("Packet header is truncated: %+v", pHeader)
 		}
-		fmt.Printf("%+v\n", pHeader)
-		_, err := buf.Seek(int64(pHeader.LengthTruncated), io.SeekCurrent)
+		fmt.Printf("Packet Header: %+v\n", pHeader)
+		err = binary.Read(buf, binary.BigEndian, mHeader)
 		if err != nil {
-			log.Fatal("Unexpected error seeking in file", err)
+			log.Fatal("error parsing MAC Header: ", err)
 		}
+		if !mHeader.IPv4() {
+			log.Fatalf("Unexpected EtherType %x", mHeader.EtherType)
+		}
+		fmt.Printf("MAC Header: %+v\n", mHeader)
+		_, err = buf.Seek(
+			int64(pHeader.LengthTruncated)-macHeaderSize,
+			io.SeekCurrent,
+		)
+		if err != nil {
+			log.Fatal("Unexpected error seeking in file: ", err)
+		}
+		numPackets++
 	}
 	fmt.Printf("Number of packets: %d", numPackets)
 }
