@@ -134,12 +134,15 @@ const (
 	tcpProtocol      = 6
 )
 
+var (
+	gHeader  = new(globalHeader)
+	pHeader  = new(packetHeader)
+	mHeader  = new(macHeader)
+	ipHeader = new(ipv4Header)
+	tHeader  = new(tcpHeader)
+)
+
 func main() {
-	gHeader := new(globalHeader)
-	pHeader := new(packetHeader)
-	mHeader := new(macHeader)
-	ipHeader := new(ipv4Header)
-	tHeader := new(tcpHeader)
 	var clientIp ipAddress
 	var hostIp ipAddress
 	requestPayloads := make(map[sequenceNumber]tcpPayload)
