@@ -48,10 +48,14 @@ type DnsMessage struct {
 }
 
 func Query(rName ResourceName, rType ResourceType) *DnsMessage {
+	flags := NewDnsFlagBuilder().
+		SetOpCodeQuery().
+		SetRecursionDesired().
+		Build()
 	return &DnsMessage{
 		Header: DnsHeader{
 			Identification: uint16(rand.Intn(0xffff)),
-			Flags:          0x100, // build more obviously
+			Flags:          flags,
 			QuestionCount:  1,
 		},
 		Questions: []ResourceRecord{*QuestionRecord(rName, rType)},
@@ -402,35 +406,32 @@ func decodeResourceName(r *bytes.Reader) (ResourceName, error) {
 	}
 }
 
+type DnsFlagBuilder struct {
+	f DnsFlags
+}
+
+func NewDnsFlagBuilder() *DnsFlagBuilder {
+	return &DnsFlagBuilder{}
+}
+func (fb *DnsFlagBuilder) SetOpCodeQuery() *DnsFlagBuilder {
+	fb.f &= ^(opCodeMask)                    // clear opcode
+	fb.f |= DnsFlags(0b0000 << opCodeOffset) // set opcode to zero
+	return fb
+}
+func (fb *DnsFlagBuilder) SetRecursionDesired() *DnsFlagBuilder {
+	fb.f |= 0x100
+	return fb
+}
+func (fb *DnsFlagBuilder) Build() DnsFlags {
+	return fb.f
+}
+
 type DnsFlags uint16
 
 func (df *DnsFlags) opCode() byte {
 	return byte((*df & opCodeMask) >> opCodeOffset)
 }
 
-// parse op code
-func (df *DnsFlags) isOpCodeQuery() bool {
-	return df.opCode() == 0
-}
-func (df *DnsFlags) isOpCodeResponse() bool {
-	return df.opCode() == 1
-}
-func (df *DnsFlags) isOpCodeServerStatus() bool {
-	return df.opCode() == 2
-}
-
-func (df *DnsFlags) isResponseAuthoritative() bool {
-	return *df>>10&1 == 1
-}
-func (df *DnsFlags) isResponseTruncated() bool {
-	return *df>>9&1 == 1
-}
-func (df *DnsFlags) isRecursionDesired() bool {
-	return *df>>8&1 == 1
-}
-func (df *DnsFlags) isRecursionAvailable() bool {
-	return *df>>7&1 == 1
-}
 func (df *DnsFlags) Code() ResponseCode {
 	return ResponseCode(*df & responseCodeMask)
 }
