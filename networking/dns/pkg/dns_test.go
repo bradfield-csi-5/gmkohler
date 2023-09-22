@@ -1,6 +1,9 @@
 package pkg
 
-import "testing"
+import (
+	"bytes"
+	"testing"
+)
 
 type test struct {
 	decoded string
@@ -38,9 +41,10 @@ var tests = []test{
 	},
 }
 
-func TestEncodeQuestionName(t *testing.T) {
+func TestResourceName_Encode(t *testing.T) {
 	for _, data := range tests {
-		encoded, err := encodeQuestionName(ResourceName(data.decoded))
+		name := ResourceName(data.decoded)
+		encoded, err := name.Encode()
 		if err != nil {
 			t.Fatalf("unexpected error in encoding: %v", err)
 		}
@@ -67,7 +71,7 @@ func TestEncodeQuestionName(t *testing.T) {
 
 func TestDecodeQuestionName(t *testing.T) {
 	for _, data := range tests {
-		decoded, err := decodeResourceName(data.encoded)
+		decoded, err := decodeResourceName(bytes.NewReader(data.encoded))
 		if err != nil {
 			t.Fatalf("unexpected error decoding: %v", err)
 		}
