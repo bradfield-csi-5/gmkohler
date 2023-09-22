@@ -67,7 +67,7 @@ func TestEncodeQuestionName(t *testing.T) {
 
 func TestDecodeQuestionName(t *testing.T) {
 	for _, data := range tests {
-		decoded, err := DecodeResourceName(data.encoded)
+		decoded, err := decodeResourceName(data.encoded)
 		if err != nil {
 			t.Fatalf("unexpected error decoding: %v", err)
 		}

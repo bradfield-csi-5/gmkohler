@@ -173,7 +173,7 @@ func DecodeMessage(encoded []byte) (*DnsMessage, error) {
 }
 
 func decodeCommonRrComponents(r *bytes.Reader) (*ResourceRecord, error) {
-	name, err := DecodeResourceName(r)
+	name, err := decodeResourceName(r)
 	if err != nil {
 		return nil, fmt.Errorf(
 			"decodeCommonRrComponents(): error decoding resource name: %w",
@@ -228,41 +228,112 @@ func decodeResourceRecord(r *bytes.Reader) (*ResourceRecord, error) {
 		)
 	}
 	fmt.Printf("data length: %d\n", rDataLength)
-	rData := make([]byte, rDataLength)
-	err = binary.Read(r, binary.BigEndian, rData)
-	if err != nil {
-		return nil, fmt.Errorf(
-			"decodeResourceRecord(): error decoding data: %w",
-			err,
-		)
-	}
-	fmt.Printf("resource data: %v", rData)
 
 	rrp.Ttl = ttl
 	rrp.RecordDataLength = rDataLength
-	rrp.recordData = decodeResourceData(rData, rrp.Type)
+	rrp.recordData = decodeResourceData(r, rDataLength, rrp.Type)
 	return rrp, nil
 }
 
-func decodeResourceData(encoded []byte, rt ResourceType) string {
+func decodeResourceData(
+	r *bytes.Reader,
+	rDataLength uint16,
+	rt ResourceType,
+) string {
 	switch rt {
 	case CName, Address: // interpret data as an IP address
-		strs := make([]string, len(encoded))
-		for j, b := range encoded {
+		rData := make([]byte, rDataLength)
+		if err := binary.Read(r, binary.BigEndian, rData); err != nil {
+			panic(fmt.Sprintf(
+				"decodeResourceRecord(): error decoding data: %v",
+				err,
+			))
+		}
+		strs := make([]string, len(rData))
+		for j, b := range rData {
 			strs[j] = strconv.Itoa(int(b))
 		}
 		return strings.Join(strs, ".")
 	case NameServer: // interpret data as a domain name
-		name, err := DecodeResourceName(bytes.NewReader(encoded))
+		name, err := decodeResourceName(r)
 		if err != nil {
 			panic("error decoding name")
 		}
 		return string(name)
+	case Soa:
+		primaryNameServer, err := decodeResourceName(r)
+		if err != nil {
+			panic(fmt.Sprintf(
+				"error decoding MNAME of SOA data: %v",
+				err,
+			))
+		}
+		responsibleAuthorityMailbox, err := decodeResourceName(r)
+		if err != nil {
+			panic(fmt.Sprintf(
+				"error decoding RNAME of SOA data: %v",
+				err,
+			))
+		}
+		var serial uint32
+		if err := binary.Read(r, binary.BigEndian, &serial); err != nil {
+			panic(fmt.Sprintf(
+				"error decoding SERIAL of SOA data: %v",
+				err,
+			))
+		}
+		var refresh uint32
+		if err := binary.Read(r, binary.BigEndian, &refresh); err != nil {
+			panic(fmt.Sprintf(
+				"error decoding REFRESH of SOA data: %v",
+				err,
+			))
+		}
+		var retry uint32
+		if err := binary.Read(r, binary.BigEndian, &retry); err != nil {
+			panic(fmt.Sprintf(
+				"error decoding RETRY of SOA data: %v",
+				err,
+			))
+		}
+		var expire uint32
+		if err := binary.Read(r, binary.BigEndian, &expire); err != nil {
+			panic(fmt.Sprintf(
+				"error decoding EXPIRE of SOA data: %v",
+				err,
+			))
+		}
+		var minimum uint32
+		if err := binary.Read(r, binary.BigEndian, &minimum); err != nil {
+			panic(fmt.Sprintf(
+				"error decoding MINIMUM of SOA data: %v",
+				err,
+			))
+		}
+		return fmt.Sprintf("Primary name server: %s, "+
+			"Responsible authority's mailbox: %s, "+
+			"Serial Number: %d, "+
+			"Refresh Interval: %ds, "+
+			"Retry Interval: %ds, "+
+			"Expire limit: %ds, "+
+			"Minimum TTL: %ds",
+			primaryNameServer,
+			responsibleAuthorityMailbox,
+			serial,
+			refresh,
+			retry,
+			expire,
+			minimum,
+		)
 	default:
-		panic(fmt.Sprintf(
-			"decodeResourceData(): not implemented for %v",
-			rt,
-		))
+		rData := make([]byte, rDataLength)
+		if _, err := r.Read(rData); err != nil {
+			panic(fmt.Sprintf(
+				"error reading data: %v",
+				err,
+			))
+		}
+		return string(rData)
 	}
 }
 
@@ -284,8 +355,8 @@ func (rn *ResourceName) Encode() ([]byte, error) {
 	encoded = append(encoded, 0x0)
 	return encoded, nil
 }
-func DecodeResourceName(r *bytes.Reader) (ResourceName, error) {
-	var decoded []byte
+func decodeResourceName(r *bytes.Reader) (ResourceName, error) {
+	var decoded []string
 	for {
 		l, err := r.ReadByte()
 		if err != nil {
@@ -306,7 +377,7 @@ func DecodeResourceName(r *bytes.Reader) (ResourceName, error) {
 			if err != nil {
 				return "", err
 			}
-			rName, err := DecodeResourceName(r)
+			rName, err := decodeResourceName(r)
 			if err != nil {
 				return "", err
 			}
@@ -314,18 +385,18 @@ func DecodeResourceName(r *bytes.Reader) (ResourceName, error) {
 			if err != nil {
 				return "", err
 			}
-			return rName, nil
+			decoded = append(decoded, string(rName))
+			return ResourceName(strings.Join(decoded, ".")), nil
 		}
 		s := make([]byte, l)
 		_, err = r.Read(s)
 		if err != nil {
 			return "", fmt.Errorf("error reading string: %w", err)
 		}
-		decoded = append(decoded, s...)
-		decoded = append(decoded, 0x2e) // append '.'
+		decoded = append(decoded, string(s))
 	}
 	if len(decoded) > 0 {
-		return ResourceName(decoded[:len(decoded)-1]), nil // trim last '.'
+		return ResourceName(strings.Join(decoded, ".")), nil
 	} else {
 		return "", nil
 	}
@@ -401,6 +472,7 @@ const (
 	Address    ResourceType = 0x01 // 'A'
 	NameServer ResourceType = 0x02 // 'NS'
 	CName      ResourceType = 0x05 // 'CNAME'
+	Soa        ResourceType = 0x06
 	MailServer ResourceType = 0x15 // 'MX'
 )
 
@@ -426,6 +498,8 @@ func (rt ResourceType) String() string {
 		return "A"
 	case NameServer:
 		return "NS"
+	case Soa:
+		return "SOA"
 	case MailServer:
 		return "MX"
 	default:
