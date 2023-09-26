@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"syscall"
 )
@@ -43,23 +44,38 @@ func main() {
 		if err != nil {
 			log.Fatal("error receiving message: ", err)
 		}
+		go handleConnection(nfd)
+	}
+}
+
+func handleConnection(fd int) {
+	defer func(fd int) {
+		if err := syscall.Close(fd); err != nil {
+			log.Fatalf(
+				"failure closing socket %d: %v",
+				fd,
+				err,
+			)
+		}
+	}(fd)
+
+	for {
 		buf := make([]byte, 0x1000)
-		bytesRead, fromAddr, err := syscall.Recvfrom(nfd, buf, 0)
+		bytesRead, fromAddr, err := syscall.Recvfrom(fd, buf, 0)
 		if err != nil {
 			log.Fatal("error receiving from file descriptor:", err)
 		}
-
+		if bytesRead == 0 {
+			fmt.Println("no bytes to be read. closing connection.")
+			break
+		}
 		if err = syscall.Sendto(
-			nfd,
+			fd,
 			buf[:bytesRead],
 			0,
 			fromAddr,
 		); err != nil {
 			log.Fatal("error sending data back: ", err)
-		}
-
-		if err = syscall.Close(nfd); err != nil {
-			log.Fatal("error closing client file descriptor: ", err)
 		}
 	}
 }
