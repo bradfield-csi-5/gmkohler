@@ -7,40 +7,62 @@ import (
 	"syscall"
 )
 
-var port int
+var (
+	clientFd   int
+	clientPort int
+	serverFd   int
+	serverPort int
+)
 
 func init() {
-	flag.IntVar(&port, "p", 80, "port to listen on")
+	flag.IntVar(&clientPort, "p", 80, "port to listen on")
+	flag.IntVar(&serverPort, "f", 81, "port to forward to")
 }
 
 func main() {
 	flag.Parse()
-	s, err := syscall.Socket(
-		syscall.AF_INET,
-		syscall.SOCK_STREAM,
-		syscall.IPPROTO_TCP,
-	)
-	defer func(fd int) {
-		if err := syscall.Close(fd); err != nil {
-			log.Fatal("error closing socket: ", err)
-		}
-	}(s)
+	var err error
+	clientFd, err = openTcpSocket()
+	defer closeSocket(clientFd)
 	if err != nil {
-		log.Fatal("error listening on port: ", err)
+		panic(err)
 	}
-	err = syscall.Bind(
-		s,
-		&syscall.SockaddrInet4{Port: port, Addr: [4]byte{}},
-	)
+	if err = syscall.Bind(
+		clientFd,
+		&syscall.SockaddrInet4{
+			Port: clientPort,
+			Addr: [4]byte{},
+		},
+	); err != nil {
+		panic(fmt.Errorf(
+			"error binding fd %d: %w",
+			clientFd,
+			err,
+		))
+	}
+
+	serverFd, err = openTcpSocket()
+	defer closeSocket(serverFd)
 	if err != nil {
-		log.Fatal("error binding socket: ", err)
+		panic(err)
 	}
-	err = syscall.Listen(s, 128)
+	if err = syscall.Connect(
+		serverFd,
+		&syscall.SockaddrInet4{
+			Port: serverPort,
+			Addr: [4]byte{},
+		},
+	); err != nil {
+		panic(err)
+	}
+
+	err = syscall.Listen(clientFd, 128)
 	if err != nil {
-		log.Fatal("error listening on socket: ", err)
+		panic(fmt.Errorf("error listening on fd %d: %w", clientFd, err))
 	}
+
 	for {
-		nfd, _, err := syscall.Accept(s)
+		nfd, _, err := syscall.Accept(clientFd)
 		if err != nil {
 			log.Fatal("error receiving message: ", err)
 		}
@@ -48,16 +70,26 @@ func main() {
 	}
 }
 
+func closeSocket(fd int) {
+	if err := syscall.Close(fd); err != nil {
+		log.Fatal("error closing socket: ", err)
+	}
+}
+
+func openTcpSocket() (int, error) {
+	fd, err := syscall.Socket(
+		syscall.AF_INET,
+		syscall.SOCK_STREAM,
+		syscall.IPPROTO_TCP,
+	)
+	if err != nil {
+		return -1, fmt.Errorf("openTcpSocket(): %w", err)
+	}
+	return fd, nil
+}
+
 func handleConnection(fd int) {
-	defer func(fd int) {
-		if err := syscall.Close(fd); err != nil {
-			log.Fatalf(
-				"failure closing socket %d: %v",
-				fd,
-				err,
-			)
-		}
-	}(fd)
+	defer closeSocket(fd)
 
 	for {
 		buf := make([]byte, 0x1000)
@@ -70,12 +102,12 @@ func handleConnection(fd int) {
 			break
 		}
 		if err = syscall.Sendto(
-			fd,
+			serverFd,
 			buf[:bytesRead],
 			0,
 			fromAddr,
 		); err != nil {
-			log.Fatal("error sending data back: ", err)
+			log.Fatal("error sending data to proxied server: ", err)
 		}
 	}
 }
