@@ -22,7 +22,11 @@ func main() {
 		Addr: ip,
 		Port: dnsPort,
 	}
-	s, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
+	s, err := syscall.Socket(
+		syscall.AF_INET,
+		syscall.SOCK_DGRAM,
+		syscall.IPPROTO_UDP,
+	)
 	if err != nil {
 		log.Fatal("error opening socket: ", err)
 	}

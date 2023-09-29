@@ -1,113 +1,102 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
-	"syscall"
+	"proxy/pkg"
 )
 
 var (
-	clientFd   int
-	clientPort int
-	serverFd   int
-	serverPort int
+	proxyPort     int
+	proxySocket   *pkg.Socket // socket talking to the real server
+	welcomePort   int
+	welcomeSocket *pkg.Socket // socket welcoming new client connections
 )
 
 func init() {
-	flag.IntVar(&clientPort, "p", 80, "port to listen on")
-	flag.IntVar(&serverPort, "f", 81, "port to forward to")
+	flag.IntVar(&welcomePort, "p", 80, "port to listen on")
+	flag.IntVar(&proxyPort, "f", 8080, "port to forward to")
 }
 
+// This program assumes that the proxy socket connection stays alive
 func main() {
 	flag.Parse()
 	var err error
-	clientFd, err = openTcpSocket()
-	defer closeSocket(clientFd)
+	welcomeSocket, err = pkg.NewTcpSocket()
 	if err != nil {
 		panic(err)
 	}
-	if err = syscall.Bind(
-		clientFd,
-		&syscall.SockaddrInet4{
-			Port: clientPort,
-			Addr: [4]byte{},
-		},
-	); err != nil {
+	defer welcomeSocket.Close()
+
+	welcomeAddr := pkg.NewIpv4Address(welcomePort, [4]byte{})
+	if err = welcomeSocket.Bind(welcomeAddr); err != nil {
 		panic(fmt.Errorf(
-			"error binding fd %d: %w",
-			clientFd,
+			"error binding fd %v: %w",
+			welcomeSocket,
 			err,
 		))
 	}
 
-	serverFd, err = openTcpSocket()
-	defer closeSocket(serverFd)
+	proxySocket, err = pkg.NewTcpSocket()
 	if err != nil {
 		panic(err)
 	}
-	if err = syscall.Connect(
-		serverFd,
-		&syscall.SockaddrInet4{
-			Port: serverPort,
-			Addr: [4]byte{},
-		},
-	); err != nil {
+	defer proxySocket.Close()
+
+	proxyAddr := pkg.NewIpv4Address(proxyPort, [4]byte{})
+	if err = proxySocket.Connect(proxyAddr); err != nil {
 		panic(err)
 	}
 
-	err = syscall.Listen(clientFd, 128)
+	err = welcomeSocket.Listen()
 	if err != nil {
-		panic(fmt.Errorf("error listening on fd %d: %w", clientFd, err))
+		panic(fmt.Errorf("error listening on socket %v: %w", welcomeSocket,
+			err))
 	}
 
 	for {
-		nfd, _, err := syscall.Accept(clientFd)
+		connSocket, err := welcomeSocket.Accept()
 		if err != nil {
 			log.Fatal("error receiving message: ", err)
 		}
-		go handleConnection(nfd)
+		go handleConnection(connSocket)
 	}
 }
 
-func closeSocket(fd int) {
-	if err := syscall.Close(fd); err != nil {
-		log.Fatal("error closing socket: ", err)
-	}
-}
-
-func openTcpSocket() (int, error) {
-	fd, err := syscall.Socket(
-		syscall.AF_INET,
-		syscall.SOCK_STREAM,
-		syscall.IPPROTO_TCP,
-	)
-	if err != nil {
-		return -1, fmt.Errorf("openTcpSocket(): %w", err)
-	}
-	return fd, nil
-}
-
-func handleConnection(fd int) {
-	defer closeSocket(fd)
+func handleConnection(connSocket *pkg.Socket) {
+	defer connSocket.Close()
 
 	for {
-		buf := make([]byte, 0x1000)
-		bytesRead, fromAddr, err := syscall.Recvfrom(fd, buf, 0)
+		var requestBuf bytes.Buffer
+		err := connSocket.ReadHttp(&requestBuf)
 		if err != nil {
-			log.Fatal("error receiving from file descriptor:", err)
+			log.Fatal("error receiving data from client:", err)
 		}
-		if bytesRead == 0 {
-			fmt.Println("no bytes to be read. closing connection.")
-			break
-		}
-		if err = syscall.Sendto(
-			serverFd,
-			buf[:bytesRead],
-			0,
-			fromAddr,
-		); err != nil {
+		fmt.Printf(
+			"request from client: %s\n",
+			requestBuf.String(),
+		)
+		fmt.Println("proxying request to server")
+		if err = proxySocket.Write(requestBuf.Bytes()); err != nil {
 			log.Fatal("error sending data to proxied server: ", err)
+		}
+		fmt.Println("request written to server")
+		fmt.Println("reading response from server")
+		var responseBuf bytes.Buffer
+		err = proxySocket.ReadHttp(&responseBuf)
+		fmt.Printf(
+			"response from server:\n%s\n",
+			responseBuf.String(),
+		)
+		if err != nil {
+			log.Fatalf("error reading data from server: %v", err)
+		}
+		fmt.Println("sending response to client")
+		responseBuf.WriteByte('\n')
+		if err = connSocket.Write(responseBuf.Bytes()); err != nil {
+			log.Fatal("error sending data to client")
 		}
 	}
 }
