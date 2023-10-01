@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"proxy/pkg"
 )
 
@@ -13,6 +15,7 @@ var (
 	proxySocket   *pkg.Socket // socket talking to the real server
 	welcomePort   int
 	welcomeSocket *pkg.Socket // socket welcoming new client connections
+	cache         = pkg.NewHttpCache(pkg.CacheConfig{Prefix: "/foo"})
 )
 
 func init() {
@@ -78,14 +81,25 @@ func handleConnection(connSocket *pkg.Socket) {
 			"request from client: %s\n",
 			requestBuf.String(),
 		)
-		fmt.Println("proxying request to server")
+		reader := bufio.NewReader(bytes.NewReader(requestBuf.Bytes()))
+		req, err := http.ReadRequest(reader)
+		if err != nil {
+			fmt.Errorf("handleConnection(): %w", err)
+		}
+		var responseBuf *bytes.Buffer
+		// FIXME
+		if cache.ShouldCache(req.URL.Path) {
+			resp := cache.Get(req.URL.Path)
+			if resp != nil {
+				responseBuf = bytes.NewBuffer(resp)
+			}
+		}
 		if err = proxySocket.Write(requestBuf.Bytes()); err != nil {
 			log.Fatal("error sending data to proxied server: ", err)
 		}
 		fmt.Println("request written to server")
 		fmt.Println("reading response from server")
-		var responseBuf bytes.Buffer
-		err = proxySocket.ReadHttp(&responseBuf)
+		err = proxySocket.ReadHttp(responseBuf)
 		fmt.Printf(
 			"response from server:\n%s\n",
 			responseBuf.String(),
