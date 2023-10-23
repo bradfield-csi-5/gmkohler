@@ -66,6 +66,18 @@ func (s *scope) compileExpression(e ast.Expr, buf *bytes.Buffer) error {
 			buf.WriteString("mul\n")
 		case token.QUO:
 			buf.WriteString("div\n")
+		case token.EQL:
+			buf.WriteString("eq\n")
+		case token.GTR:
+			buf.WriteString("gt\n")
+		case token.LSS:
+			buf.WriteString("lt\n")
+		case token.NEQ:
+			buf.WriteString("neq\n")
+		case token.LEQ:
+			buf.WriteString("leq\n")
+		case token.GEQ:
+			buf.WriteString("geq\n")
 		default:
 			return fmt.Errorf("unsupported token %s", et.Op.String())
 		}
@@ -90,17 +102,73 @@ func (s *scope) compileExpression(e ast.Expr, buf *bytes.Buffer) error {
 
 func (s *scope) compileStatement(stmt ast.Stmt, buf *bytes.Buffer) error {
 	var err error
-	switch stmtType := stmt.(type) {
+	switch sType := stmt.(type) {
+	case *ast.AssignStmt:
+		// expect basic assignments (e.g. not dual assignments)
+		lhsId, ok := sType.Lhs[0].(*ast.Ident)
+		if !ok {
+			return fmt.Errorf(
+				"only assignments to identifiers are allowed, got %T instead",
+				sType.Lhs[0],
+			)
+		}
+		lhsAddr, ok := s.identifiers[lhsId.Name]
+		if !ok {
+			return fmt.Errorf("unrecognized identifier %s", lhsId.Name)
+		}
+		err = s.compileExpression(sType.Rhs[0], buf)
+		if err != nil {
+			return err
+		}
+		/**
+		 * pop what was pushed (by evaluating Rhs) from stack to the mem addr of
+		 * the Lhs identifier
+		 */
+		buf.WriteString(fmt.Sprintf("pop %d\n", lhsAddr))
+		return nil
 	case *ast.BlockStmt:
-		for _, subStmt := range stmtType.List {
+		for _, subStmt := range sType.List {
 			err = s.compileStatement(subStmt, buf)
 			if err != nil {
 				return err
 			}
 		}
 		return nil
+	case *ast.IfStmt:
+		// requires labels for branching
+		labelElse := fmt.Sprintf("if-%d-else", sType.If)
+		labelAfter := fmt.Sprintf("if-%d-after", sType.If)
+		// evaluate condition
+		err = s.compileExpression(sType.Cond, buf)
+		if err != nil {
+			return err
+		}
+		jumpLabel := labelAfter
+		if sType.Else != nil {
+			jumpLabel = labelElse
+		}
+		// we either jump to the else or after in the false case; otherwise
+		// we proceed with the body:
+		buf.WriteString(fmt.Sprintf("jeqz %s\n", jumpLabel))
+		err = s.compileStatement(sType.Body, buf)
+		if err != nil {
+			return err
+		}
+		if sType.Else != nil {
+			// if we have to write the else statement, jump over it in the
+			// body statement that we just wrote
+			buf.WriteString(fmt.Sprintf("jump %s\n", labelAfter))
+			buf.WriteString(fmt.Sprintf("label %s\n", labelElse))
+			err = s.compileStatement(sType.Else, buf)
+			if err != nil {
+				return err
+			}
+		}
+		buf.WriteString(fmt.Sprintf("label %s\n", labelAfter))
+		//err = s.compileExpression(sType.Cond.)
+		return nil
 	case *ast.ReturnStmt:
-		res := stmtType.Results[0]
+		res := sType.Results[0]
 		err := s.compileExpression(res, buf)
 		if err != nil {
 			return err
@@ -109,6 +177,6 @@ func (s *scope) compileStatement(stmt ast.Stmt, buf *bytes.Buffer) error {
 		buf.WriteString("halt\n")
 		return nil
 	default:
-		return fmt.Errorf("unsupported statement type %T", stmtType)
+		return fmt.Errorf("unsupported statement type %T", sType)
 	}
 }
