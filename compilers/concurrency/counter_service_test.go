@@ -16,7 +16,7 @@ const (
 func getNextMonotonicityChecker(counter CounterService, t *testing.T) {
 	var prev uint64
 	for i := 0; i < CallsPerGoroutine; i++ {
-		value := counter.getNext()
+		value := counter.GetNext()
 		if value <= prev {
 			t.Fatalf("Values were NOT monotonically increasing; value: %d, prev: %d", value, prev)
 		}
@@ -26,10 +26,12 @@ func getNextMonotonicityChecker(counter CounterService, t *testing.T) {
 
 func TestSynchronizedCounterServices(t *testing.T) {
 	var wg sync.WaitGroup
+	ccs := NewChannelCounterService()
+	defer ccs.Close()
 	counters := []CounterService{
 		&AtomicCounterService{},
 		&MutexCounterService{},
-		newChannelCounterService(),
+		ccs,
 	}
 	for _, counter := range counters {
 		for i := 0; i < NumGoroutines; i++ {
@@ -40,7 +42,7 @@ func TestSynchronizedCounterServices(t *testing.T) {
 			}()
 		}
 		wg.Wait()
-		nextVal := counter.getNext()
+		nextVal := counter.GetNext()
 		if nextVal != (NumGoroutines*CallsPerGoroutine)+1 {
 			t.Errorf("Counter ID does not match total calls; nextVal: %d", nextVal)
 		}
@@ -52,13 +54,15 @@ func TestSynchronizedCounterServices(t *testing.T) {
 func TestUnsynchronizedCounterService(t *testing.T) {
 	var counter CounterService = &UnsynchronizedCounterService{}
 	getNextMonotonicityChecker(counter, t)
-	nextVal := counter.getNext()
+	nextVal := counter.GetNext()
 	if nextVal != CallsPerGoroutine+1 {
 		t.Fatalf("Counter ID does not match total calls; nextVal: %d", nextVal)
 	}
 }
 
 func BenchmarkCounterServices(b *testing.B) {
+	ccs := NewChannelCounterService()
+	defer ccs.Close()
 	for _, testCase := range []struct {
 		name    string
 		counter CounterService
@@ -66,11 +70,11 @@ func BenchmarkCounterServices(b *testing.B) {
 		{"unsynchronized", &UnsynchronizedCounterService{}},
 		{"atomic", &AtomicCounterService{}},
 		{"mutex", &MutexCounterService{}},
-		{"channel", newChannelCounterService()},
+		{"channel", ccs},
 	} {
 		b.Run(testCase.name, func(b *testing.B) {
 			for n := 0; n < b.N; n++ {
-				testCase.counter.getNext()
+				testCase.counter.GetNext()
 			}
 		})
 	}
@@ -78,6 +82,8 @@ func BenchmarkCounterServices(b *testing.B) {
 
 func BenchmarkCounterServicesContended(b *testing.B) {
 	b.SetParallelism(NumGoroutines / runtime.GOMAXPROCS(0))
+	ccs := NewChannelCounterService()
+	defer ccs.Close()
 	for _, testCase := range []struct {
 		name    string
 		counter CounterService
@@ -85,12 +91,12 @@ func BenchmarkCounterServicesContended(b *testing.B) {
 		{"unsynchronized", &UnsynchronizedCounterService{}},
 		{"atomic", &AtomicCounterService{}},
 		{"mutex", &MutexCounterService{}},
-		{"channel", newChannelCounterService()},
+		{"channel", ccs},
 	} {
 		b.Run(testCase.name, func(b *testing.B) {
 			b.RunParallel(func(pb *testing.PB) {
 				for pb.Next() {
-					testCase.counter.getNext()
+					testCase.counter.GetNext()
 				}
 			})
 		})

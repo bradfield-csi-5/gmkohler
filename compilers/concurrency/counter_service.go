@@ -2,51 +2,76 @@
 
 package counterservice
 
+import (
+	"sync"
+	"sync/atomic"
+)
+
 type CounterService interface {
-	// Returns values in ascending order; it should be safe to call
-	// getNext() concurrently from multiple goroutines without any
+	// GetNext Returns values in ascending order; it should be safe to call
+	// GetNext() concurrently from multiple goroutines without any
 	// additional synchronization on the caller's side.
-	getNext() uint64
+	GetNext() uint64
 }
 
 type UnsynchronizedCounterService struct {
-	/* Please implement this struct and its getNext method */
+	counter uint64
 }
 
-// getNext() - This one can be UNSAFE
-func (counter *UnsynchronizedCounterService) getNext() uint64 {
-	panic("getNext not implemented")
+func (c *UnsynchronizedCounterService) GetNext() uint64 {
+	c.counter++
+	return c.counter
 }
 
 type AtomicCounterService struct {
-	/* Please implement this struct and its getNext method */
+	counter atomic.Uint64
 }
 
-// getNext() with sync/atomic
-func (counter *AtomicCounterService) getNext() uint64 {
-	panic("getNext not implemented")
+func (c *AtomicCounterService) GetNext() uint64 {
+	return c.counter.Add(1)
 }
 
 type MutexCounterService struct {
-	/* Please implement this struct and its getNext method */
+	mu      sync.Mutex
+	counter uint64
 }
 
-// getNext() with sync/Mutex
-func (counter *MutexCounterService) getNext() uint64 {
-	panic("getNext not implemented")
+func (c *MutexCounterService) GetNext() uint64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.counter++
+	return c.counter
 }
 
 type ChannelCounterService struct {
-	/* Please implement this struct and its getNext method */
+	counter   uint64
+	counterCh chan uint64
+	incrCh    chan struct{}
 }
 
-// A constructor for ChannelCounterService
-func newChannelCounterService() *ChannelCounterService {
-	cs := ChannelCounterService{}
+// NewChannelCounterService is a constructor for ChannelCounterService
+func NewChannelCounterService() *ChannelCounterService {
+	cs := ChannelCounterService{
+		incrCh:    make(chan struct{}, 20),
+		counterCh: make(chan uint64, 20),
+	}
+
+	go func() {
+		for range cs.incrCh {
+			cs.counter++
+			cs.counterCh <- cs.counter
+		}
+	}()
+
 	return &cs
 }
 
-// getNext() with goroutines and channels
-func (counter *ChannelCounterService) getNext() uint64 {
-	panic("getNext not implemented")
+func (c *ChannelCounterService) Close() {
+	close(c.counterCh)
+	close(c.incrCh)
+}
+
+func (c *ChannelCounterService) GetNext() uint64 {
+	c.incrCh <- struct{}{}
+	return <-c.counterCh
 }
