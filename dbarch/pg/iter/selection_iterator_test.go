@@ -80,9 +80,10 @@ func TestSelectionIterator_Next(t *testing.T) {
 		},
 	}
 
-	si := NewSelectionIterator(tuples, isASeattleMariner)
-	var results []*Tuple
+	si := NewSelectionIterator(NewScanIterator(tuples), isASeattleMariner)
+	si.Init()
 
+	var results []*Tuple
 	for tup := si.Next(); tup != nil; tup = si.Next() {
 		results = append(results, tup)
 	}

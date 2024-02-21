@@ -33,8 +33,3 @@ func (s *scanIterator) Next() *Tuple {
 func (s *scanIterator) Close() {
 	fmt.Println("Close scanIterator")
 }
-
-func (s *scanIterator) Iterators() []Iterator {
-	//TODO implement me
-	panic("implement me")
-}

@@ -28,12 +28,11 @@ func TestScanIterator_Next(t *testing.T) {
 	}
 
 	var si Iterator = NewScanIterator(tuples)
+	si.Init()
 	var results []*Tuple
-	var tup *Tuple = si.Next()
 
-	for tup != nil {
+	for tup := si.Next(); tup != nil; tup = si.Next() {
 		results = append(results, tup)
-		tup = si.Next()
 	}
 
 	if !slices.Equal(tuples, results) {

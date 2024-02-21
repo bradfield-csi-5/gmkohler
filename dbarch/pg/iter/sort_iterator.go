@@ -5,39 +5,39 @@ import "slices"
 type SortFunc func(*Tuple, *Tuple) int
 
 type sortIterator struct {
-	tuples    []*Tuple
 	sortFunc  SortFunc
 	currTuple int
+	source    Iterator
+	sorted    []*Tuple
 }
 
-func NewSortIterator(tuples []*Tuple, sortFunc SortFunc) Iterator {
+func NewSortIterator(source Iterator, sortFunc SortFunc) Iterator {
 	return &sortIterator{
-		tuples:   tuples,
+		source:   source,
 		sortFunc: sortFunc,
 	}
-
 }
 
 func (s *sortIterator) Init() {
+	s.source.Init()
 	// TODO make this lazier (heap?)
-	slices.SortFunc(s.tuples, s.sortFunc)
+	var tuples []*Tuple
+	for tup := s.source.Next(); tup != nil; tup = s.source.Next() {
+		tuples = append(tuples, tup)
+	}
+	slices.SortFunc(tuples, s.sortFunc)
+	s.sorted = tuples
 }
 
 func (s *sortIterator) Next() *Tuple {
-	if s.currTuple >= len(s.tuples) {
+	if s.currTuple >= len(s.sorted) {
 		return nil
 	}
-	var tup = s.tuples[s.currTuple]
+	var tup = s.sorted[s.currTuple]
 	s.currTuple++
 	return tup
 }
 
 func (s *sortIterator) Close() {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (s *sortIterator) Iterators() []Iterator {
-	//TODO implement me
-	panic("implement me")
+	s.source.Close()
 }

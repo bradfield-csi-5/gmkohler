@@ -113,7 +113,7 @@ func TestSortIterator_Next(t *testing.T) {
 		},
 	}
 
-	si := NewSortIterator(tuples, sortByTeamNameAndPosition)
+	si := NewSortIterator(NewScanIterator(tuples), sortByTeamNameAndPosition)
 	si.Init()
 	var results []*Tuple
 

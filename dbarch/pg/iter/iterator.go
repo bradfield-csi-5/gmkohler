@@ -9,7 +9,6 @@ type Iterator interface {
 	Init()
 	Next() *Tuple // consider (Tuple, err) for EOF?
 	Close()
-	Iterators() []Iterator
 }
 
 type Tuple struct {

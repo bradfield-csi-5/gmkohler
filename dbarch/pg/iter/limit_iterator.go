@@ -1,42 +1,39 @@
 package iter
 
-import "fmt"
-
 // limitIterator limits the number of output rows.
 type limitIterator struct {
-	tuples []*Tuple
+	source Iterator
 	limit  int
 	sent   int
 }
 
-func NewLimitIterator(tuples []*Tuple, limit int) Iterator {
+func NewLimitIterator(source Iterator, limit int) Iterator {
 	// TODO: Consider (Iterator, err) return signature, and fail when limit < 0
 	return &limitIterator{
-		tuples: tuples,
+		source: source,
 		limit:  limit,
 		sent:   0,
 	}
 }
 
 func (l *limitIterator) Init() {
-	fmt.Println("Init limitIterator")
+	l.source.Init()
 }
 
 func (l *limitIterator) Next() *Tuple {
-	if l.sent >= l.limit || l.sent >= len(l.tuples) {
+	if l.sent >= l.limit {
 		return nil
 	}
 
-	tup := l.tuples[l.sent]
+	var next = l.source.Next()
+	if next == nil {
+		return nil
+	}
+
 	l.sent++
-	return tup
+	return next
 }
 
 func (l *limitIterator) Close() {
-	fmt.Println("Close limitIterator")
-}
-
-func (l *limitIterator) Iterators() []Iterator {
-	//TODO implement me
-	panic("implement me")
+	l.source.Close()
 }

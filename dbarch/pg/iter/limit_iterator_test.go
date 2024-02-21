@@ -40,13 +40,11 @@ func TestLimitIterator_Next(t *testing.T) {
 	}
 
 	for _, lim := range limits {
-		var li Iterator = NewLimitIterator(tuples, lim.specified)
-		var tuple = li.Next()
-		var results []*Tuple
+		var li = NewLimitIterator(NewScanIterator(tuples), lim.specified)
 
-		for tuple != nil {
+		var results []*Tuple
+		for tuple := li.Next(); tuple != nil; tuple = li.Next() {
 			results = append(results, tuple)
-			tuple = li.Next()
 		}
 
 		if len(results) != lim.expectedResults {

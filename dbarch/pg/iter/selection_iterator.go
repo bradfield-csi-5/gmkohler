@@ -1,43 +1,32 @@
 package iter
 
-import "fmt"
-
 type Predicate func(*Tuple) bool
 
 type selectionIterator struct {
-	tuples    []*Tuple
-	currTuple int
+	source    Iterator
 	predicate Predicate
 }
 
-func NewSelectionIterator(tuples []*Tuple, predicate Predicate) Iterator {
+func NewSelectionIterator(source Iterator, predicate Predicate) Iterator {
 	return &selectionIterator{
-		tuples:    tuples,
-		currTuple: 0,
+		source:    source,
 		predicate: predicate,
 	}
 }
 
 func (s *selectionIterator) Init() {
-	fmt.Println("Init SelectionIterator")
+	s.source.Init()
 }
 
 func (s *selectionIterator) Next() *Tuple {
-	var tup *Tuple
-	for ; s.currTuple < len(s.tuples) && tup == nil; s.currTuple++ {
-		var t = s.tuples[s.currTuple]
-		if s.predicate(t) {
-			tup = t
+	for tup := s.source.Next(); tup != nil; tup = s.source.Next() {
+		if s.predicate(tup) {
+			return tup
 		}
 	}
-	return tup
+	return nil
 }
 
 func (s *selectionIterator) Close() {
-	fmt.Println("Close SelectionIterator")
-}
-
-func (s *selectionIterator) Iterators() []Iterator {
-	//TODO implement me
-	panic("implement me")
+	s.source.Close()
 }

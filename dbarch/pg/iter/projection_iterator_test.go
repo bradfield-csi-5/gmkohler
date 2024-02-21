@@ -67,7 +67,7 @@ func TestProjectionIterator_Next(t *testing.T) {
 		},
 	}
 	// tests rearranging columns
-	pi := NewProjectionIterator(tuples, []string{"department", "name"})
+	pi := NewProjectionIterator(NewScanIterator(tuples), []string{"department", "name"})
 	var results []*Tuple
 	for tup := pi.Next(); tup != nil; tup = pi.Next() {
 		results = append(results, tup)

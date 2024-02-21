@@ -20,6 +20,20 @@ func main() {
 type Executor struct {
 	root *iter.Iterator
 }
+type instructionType int
+
+const (
+	scan instructionType = iota
+	limit
+	projection
+	selection
+	sort
+)
+
+type instruction struct {
+	iType instructionType
+	vals  []string
+}
 
 func (e *Executor) Execute() []string { return nil }
 
