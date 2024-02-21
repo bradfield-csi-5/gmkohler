@@ -15,7 +15,7 @@ type Tuple struct {
 	Columns []Column
 }
 
-func (t Tuple) GetColumnValue(name string) (string, error) {
+func (t Tuple) GetColumnValue(name string) (ColumnValue, error) {
 	var col *Column
 	for _, c := range t.Columns {
 		if c.Name == name {
@@ -31,8 +31,10 @@ func (t Tuple) GetColumnValue(name string) (string, error) {
 	return col.Value, nil
 }
 
+type ColumnValue string
+
 // Column assumes all values are strings (for now)
 type Column struct {
 	Name  string
-	Value string
+	Value ColumnValue
 }

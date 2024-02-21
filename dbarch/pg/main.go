@@ -1,7 +1,5 @@
 package main
 
-import "pg/iter"
-
 /**
  * Our goal will be to implement an iter-style query executor supporting a few basic queries
  * with selection (filtering rows), projection (filtering columns), and aggregation (such as COUNT
@@ -15,28 +13,4 @@ import "pg/iter"
  */
 func main() {
 
-}
-
-type Executor struct {
-	root *iter.Iterator
-}
-type instructionType int
-
-const (
-	scan instructionType = iota
-	limit
-	projection
-	selection
-	sort
-)
-
-type instruction struct {
-	iType instructionType
-	vals  []string
-}
-
-func (e *Executor) Execute() []string { return nil }
-
-func NewExecutor(root *iter.Iterator) *Executor {
-	return &Executor{root: root}
 }

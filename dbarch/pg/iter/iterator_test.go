@@ -5,12 +5,12 @@ import "testing"
 func TestTuple_GetColumnValue(t *testing.T) {
 	var testData = []struct {
 		colName       string
-		expectedValue string
+		expectedValue ColumnValue
 		errorExpected bool
 	}{
 		{
 			colName:       "name",
-			expectedValue: "Johnny Bench",
+			expectedValue: ColumnValue("Johnny Bench"),
 		},
 		{
 			colName:       "team",
