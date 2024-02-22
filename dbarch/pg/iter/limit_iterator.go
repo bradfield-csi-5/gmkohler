@@ -1,5 +1,7 @@
 package iter
 
+import "pg/tuple"
+
 // limitIterator limits the number of output rows.
 type limitIterator struct {
 	source Iterator
@@ -20,7 +22,7 @@ func (l *limitIterator) Init() {
 	l.source.Init()
 }
 
-func (l *limitIterator) Next() *Tuple {
+func (l *limitIterator) Next() *tuple.Tuple {
 	if l.sent >= l.limit {
 		return nil
 	}

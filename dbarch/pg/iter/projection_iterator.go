@@ -2,6 +2,7 @@ package iter
 
 import (
 	"fmt"
+	"pg/tuple"
 )
 
 func NewProjectionIterator(source Iterator, columnNames []string) Iterator {
@@ -21,13 +22,13 @@ func (p *projectionIterator) Init() {
 	fmt.Println("Init projectionIterator")
 }
 
-func (p *projectionIterator) Next() *Tuple {
+func (p *projectionIterator) Next() *tuple.Tuple {
 	var tup = p.source.Next()
 	if tup == nil {
 		return nil
 	}
 
-	var cols []Column
+	var cols []tuple.Column
 
 	for _, colName := range p.columnNames {
 		for _, col := range tup.Columns {
@@ -38,9 +39,8 @@ func (p *projectionIterator) Next() *Tuple {
 		}
 	}
 
-	return &Tuple{
-		Columns: cols,
-	}
+	tup.Columns = cols
+	return tup
 }
 
 func (p *projectionIterator) Close() {

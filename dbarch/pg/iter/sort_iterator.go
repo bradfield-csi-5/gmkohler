@@ -1,14 +1,17 @@
 package iter
 
-import "slices"
+import (
+	"pg/tuple"
+	"slices"
+)
 
-type SortFunc func(*Tuple, *Tuple) int
+type SortFunc func(*tuple.Tuple, *tuple.Tuple) int
 
 type sortIterator struct {
 	sortFunc  SortFunc
 	currTuple int
 	source    Iterator
-	sorted    []*Tuple
+	sorted    []*tuple.Tuple
 }
 
 func NewSortIterator(source Iterator, sortFunc SortFunc) Iterator {
@@ -21,7 +24,7 @@ func NewSortIterator(source Iterator, sortFunc SortFunc) Iterator {
 func (s *sortIterator) Init() {
 	s.source.Init()
 	// TODO make this lazier (heap?)
-	var tuples []*Tuple
+	var tuples []*tuple.Tuple
 	for tup := s.source.Next(); tup != nil; tup = s.source.Next() {
 		tuples = append(tuples, tup)
 	}
@@ -29,7 +32,7 @@ func (s *sortIterator) Init() {
 	s.sorted = tuples
 }
 
-func (s *sortIterator) Next() *Tuple {
+func (s *sortIterator) Next() *tuple.Tuple {
 	if s.currTuple >= len(s.sorted) {
 		return nil
 	}

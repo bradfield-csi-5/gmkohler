@@ -2,13 +2,14 @@ package iter
 
 import (
 	"github.com/google/go-cmp/cmp"
+	"pg/tuple"
 	"testing"
 )
 
 func TestProjectionIterator_Next(t *testing.T) {
-	tuples := []*Tuple{
+	tuples := []*tuple.Tuple{
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Ada"},
 				{"gender", "F"},
 				{"department", "computer_science"},
@@ -16,7 +17,7 @@ func TestProjectionIterator_Next(t *testing.T) {
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Malcolm"},
 				{"gender", "M"},
 				{"department", "sociology"},
@@ -24,7 +25,7 @@ func TestProjectionIterator_Next(t *testing.T) {
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Richard"},
 				{"gender", "M"},
 				{"department", "physics"},
@@ -32,7 +33,7 @@ func TestProjectionIterator_Next(t *testing.T) {
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Marie"},
 				{"gender", "F"},
 				{"department", "chemistry"},
@@ -40,27 +41,27 @@ func TestProjectionIterator_Next(t *testing.T) {
 			},
 		},
 	}
-	expectedTuples := []*Tuple{
+	expectedTuples := []*tuple.Tuple{
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"department", "computer_science"},
 				{"name", "Ada"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"department", "sociology"},
 				{"name", "Malcolm"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"department", "physics"},
 				{"name", "Richard"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"department", "chemistry"},
 				{"name", "Marie"},
 			},
@@ -68,7 +69,7 @@ func TestProjectionIterator_Next(t *testing.T) {
 	}
 	// tests rearranging columns
 	pi := NewProjectionIterator(NewScanIterator(tuples), []string{"department", "name"})
-	var results []*Tuple
+	var results []*tuple.Tuple
 	for tup := pi.Next(); tup != nil; tup = pi.Next() {
 		results = append(results, tup)
 	}

@@ -3,6 +3,7 @@ package iter
 import (
 	"cmp"
 	gocmp "github.com/google/go-cmp/cmp"
+	"pg/tuple"
 	"testing"
 )
 
@@ -11,7 +12,7 @@ const (
 	positionColumn = "position"
 )
 
-func sortByTeamNameAndPosition(tuple1 *Tuple, tuple2 *Tuple) int {
+func sortByTeamNameAndPosition(tuple1 *tuple.Tuple, tuple2 *tuple.Tuple) int {
 	var err error
 	team1, err := tuple1.GetColumnValue(teamColumn)
 	if err != nil {
@@ -38,74 +39,74 @@ func sortByTeamNameAndPosition(tuple1 *Tuple, tuple2 *Tuple) int {
 }
 
 func TestSortIterator_Next(t *testing.T) {
-	var tuples = []*Tuple{
+	var tuples = []*tuple.Tuple{
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Julio Rodríguez"},
 				{"position", "CF"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Derek Jeter"},
 				{"position", "SS"},
 				{"team", "New York Yankees"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Johnny Bench"},
 				{"position", "C"},
 				{"team", "Cincinnati Reds"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Ichiro Suzuki"},
 				{"position", "RF"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Edgar Martínez"},
 				{"position", "DH"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 	}
-	var expectedTuples = []*Tuple{
+	var expectedTuples = []*tuple.Tuple{
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Johnny Bench"},
 				{"position", "C"},
 				{"team", "Cincinnati Reds"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Derek Jeter"},
 				{"position", "SS"},
 				{"team", "New York Yankees"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Julio Rodríguez"},
 				{"position", "CF"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Edgar Martínez"},
 				{"position", "DH"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Ichiro Suzuki"},
 				{"position", "RF"},
 				{"team", "Seattle Mariners"},
@@ -115,7 +116,7 @@ func TestSortIterator_Next(t *testing.T) {
 
 	si := NewSortIterator(NewScanIterator(tuples), sortByTeamNameAndPosition)
 	si.Init()
-	var results []*Tuple
+	var results []*tuple.Tuple
 
 	for tup := si.Next(); tup != nil; tup = si.Next() {
 		results = append(results, tup)
