@@ -67,21 +67,28 @@ func TestFileIterator_Next(t *testing.T) {
 		f.Close()
 		os.Remove(f.Name())
 	}()
-	writer, err := storage.NewFileWriter(f.Name())
-	if err != nil {
-		t.Fatal("failed to create writer", err)
+	var colNames []string
+	for _, col := range tuples[0].Columns {
+		colNames = append(colNames, col.Name)
 	}
-	defer writer.Close()
+	writer := storage.NewFileWriter(colNames, len(tuples), f)
+	defer func() {
+		if err := writer.Close(); err != nil {
+			t.Errorf("error closing writer: %v", err)
+		}
+	}()
+
 	for _, tup := range tuples {
 		err := writer.WriteRow(tup)
 		if err != nil {
 			t.Fatalf("failed to write row %+v: %v\n", *tup, err)
 		}
 	}
-	reader, err := storage.NewFileReader(f.Name())
+	readFile, err := os.Open(f.Name())
 	if err != nil {
-		t.Fatal("failed to create reader", err)
+		t.Fatal("failed to open file", err)
 	}
+	reader := storage.NewFileReader(readFile)
 	fileIter := NewFileIterator(reader)
 	var results []*tuple.Tuple
 	for tup := fileIter.Next(); tup != nil; tup = fileIter.Next() {
