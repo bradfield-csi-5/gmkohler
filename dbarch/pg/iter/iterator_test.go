@@ -1,16 +1,19 @@
 package iter
 
-import "testing"
+import (
+	"pg/tuple"
+	"testing"
+)
 
 func TestTuple_GetColumnValue(t *testing.T) {
 	var testData = []struct {
 		colName       string
-		expectedValue ColumnValue
+		expectedValue tuple.ColumnValue
 		errorExpected bool
 	}{
 		{
 			colName:       "name",
-			expectedValue: ColumnValue("Johnny Bench"),
+			expectedValue: tuple.ColumnValue("Johnny Bench"),
 		},
 		{
 			colName:       "team",
@@ -18,8 +21,8 @@ func TestTuple_GetColumnValue(t *testing.T) {
 		},
 	}
 
-	var tup = Tuple{
-		Columns: []Column{
+	var tup = tuple.Tuple{
+		Columns: []tuple.Column{
 			{"name", "Johnny Bench"},
 			{"position", "C"},
 		},

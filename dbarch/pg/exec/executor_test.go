@@ -3,7 +3,9 @@ package exec
 import (
 	"github.com/gocarina/gocsv"
 	"os"
+	"pg/expr"
 	"pg/iter"
+	"pg/tuple"
 	"slices"
 	"strconv"
 	"strings"
@@ -27,14 +29,14 @@ type movie struct {
 	Genres  genres `csv:"genres"`
 }
 
-var tuples []*iter.Tuple
+var tuples []*tuple.Tuple
 
-func tupleFromMovie(m movie) *iter.Tuple {
-	return &iter.Tuple{
-		Columns: []iter.Column{
-			{Name: movieId, Value: iter.ColumnValue(strconv.Itoa(m.MovieId))},
-			{Name: "title", Value: iter.ColumnValue(m.Title)},
-			{Name: "genres", Value: iter.ColumnValue(strings.Join(m.Genres, "|"))},
+func tupleFromMovie(m movie) *tuple.Tuple {
+	return &tuple.Tuple{
+		Columns: []tuple.Column{
+			{Name: movieId, Value: tuple.ColumnValue(strconv.Itoa(m.MovieId))},
+			{Name: "title", Value: tuple.ColumnValue(m.Title)},
+			{Name: "genres", Value: tuple.ColumnValue(strings.Join(m.Genres, "|"))},
 		}}
 }
 
@@ -57,19 +59,13 @@ func TestExecutor_Execute(t *testing.T) {
 	iterator := iter.NewProjectionIterator(
 		iter.NewSelectionIterator(
 			iter.NewScanIterator(tuples),
-			func(tuple *iter.Tuple) bool {
-				var mvId, err = tuple.GetColumnValue(movieId)
-				if err != nil {
-					return false
-				}
-				return mvId == "5000"
-			},
+			expr.NewEqualityExpression(movieId, "5000"),
 		),
 		[]string{"title"},
 	)
 	var executor = NewExecutor(iterator)
 	var results = executor.Execute()
-	var expected = [][]iter.ColumnValue{
+	var expected = [][]tuple.ColumnValue{
 		{
 			"Medium Cool (1969)",
 		},

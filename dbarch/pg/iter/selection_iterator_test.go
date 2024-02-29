@@ -2,77 +2,70 @@ package iter
 
 import (
 	"github.com/google/go-cmp/cmp"
+	"pg/expr"
+	"pg/tuple"
 	"testing"
 )
 
-const team = "Seattle Mariners"
+const mariners = "Seattle Mariners"
 
-func isASeattleMariner(tuple *Tuple) bool {
-	val, err := tuple.GetColumnValue("team")
-	if err != nil {
-		return false
-	}
-	if val == team {
-		return true
-	}
-	return false
-}
+var isASeattleMariner = expr.NewEqualityExpression("team", mariners)
 
 func TestSelectionIterator_Next(t *testing.T) {
-	var tuples = []*Tuple{
+	var tuples = []*tuple.Tuple{
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Johnny Bench"},
 				{"position", "C"},
 				{"team", "Cincinnati Reds"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Julio Rodríguez"},
 				{"position", "CF"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Derek Jeter"},
 				{"position", "SS"},
 				{"team", "New York Yankees"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Ichiro Suzuki"},
 				{"position", "RF"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Edgar Martínez"},
 				{"position", "DH"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 	}
-	var expectedTuples = []*Tuple{
+	var expectedTuples = []*tuple.Tuple{
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Julio Rodríguez"},
 				{"position", "CF"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Ichiro Suzuki"},
 				{"position", "RF"},
 				{"team", "Seattle Mariners"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{"name", "Edgar Martínez"},
 				{"position", "DH"},
 				{"team", "Seattle Mariners"},
@@ -83,7 +76,7 @@ func TestSelectionIterator_Next(t *testing.T) {
 	si := NewSelectionIterator(NewScanIterator(tuples), isASeattleMariner)
 	si.Init()
 
-	var results []*Tuple
+	var results []*tuple.Tuple
 	for tup := si.Next(); tup != nil; tup = si.Next() {
 		results = append(results, tup)
 	}

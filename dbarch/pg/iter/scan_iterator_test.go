@@ -1,26 +1,27 @@
 package iter
 
 import (
+	"pg/tuple"
 	"slices"
 	"testing"
 )
 
 func TestScanIterator_Next(t *testing.T) {
-	var tuples = []*Tuple{
+	var tuples = []*tuple.Tuple{
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{Name: "age", Value: "24"},
 				{Name: "name", Value: "Mary Contrary"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{Name: "age", Value: "22"},
 				{Name: "name", Value: "Bob Snob"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{Name: "age", Value: "30"},
 				{Name: "name", Value: "Julia Goulia"},
 			},
@@ -29,7 +30,7 @@ func TestScanIterator_Next(t *testing.T) {
 
 	var si Iterator = NewScanIterator(tuples)
 	si.Init()
-	var results []*Tuple
+	var results []*tuple.Tuple
 
 	for tup := si.Next(); tup != nil; tup = si.Next() {
 		results = append(results, tup)

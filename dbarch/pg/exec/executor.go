@@ -1,16 +1,19 @@
 package exec
 
-import "pg/iter"
+import (
+	"pg/iter"
+	"pg/tuple"
+)
 
 type Executor struct {
 	root iter.Iterator
 }
 
-func (e *Executor) Execute() [][]iter.ColumnValue {
+func (e *Executor) Execute() [][]tuple.ColumnValue {
 	e.root.Init()
-	var results [][]iter.ColumnValue
+	var results [][]tuple.ColumnValue
 	for tup := e.root.Next(); tup != nil; tup = e.root.Next() {
-		var result []iter.ColumnValue
+		var result []tuple.ColumnValue
 		for _, col := range tup.Columns {
 			result = append(result, col.Value)
 		}

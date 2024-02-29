@@ -1,6 +1,7 @@
 package iter
 
 import (
+	"pg/tuple"
 	"slices"
 	"testing"
 )
@@ -18,21 +19,21 @@ func TestLimitIterator_Next(t *testing.T) {
 		{3, 3},
 		{4, 3}, // can't return more than the number of tuples we have
 	}
-	var tuples = []*Tuple{
+	var tuples = []*tuple.Tuple{
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{Name: "age", Value: "24"},
 				{Name: "name", Value: "Mary Contrary"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{Name: "age", Value: "22"},
 				{Name: "name", Value: "Bob Snob"},
 			},
 		},
 		{
-			Columns: []Column{
+			Columns: []tuple.Column{
 				{Name: "age", Value: "30"},
 				{Name: "name", Value: "Julia Goulia"},
 			},
@@ -42,9 +43,9 @@ func TestLimitIterator_Next(t *testing.T) {
 	for _, lim := range limits {
 		var li = NewLimitIterator(NewScanIterator(tuples), lim.specified)
 
-		var results []*Tuple
-		for tuple := li.Next(); tuple != nil; tuple = li.Next() {
-			results = append(results, tuple)
+		var results []*tuple.Tuple
+		for tup := li.Next(); tup != nil; tup = li.Next() {
+			results = append(results, tup)
 		}
 
 		if len(results) != lim.expectedResults {
