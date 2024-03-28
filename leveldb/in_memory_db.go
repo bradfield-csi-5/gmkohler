@@ -89,7 +89,7 @@ func (db *inMemoryDb) Put(key Key, value Value) error {
 func (db *inMemoryDb) Delete(key Key) error {
 	var idx, keyExists = db.findEntryByKey(key)
 	if !keyExists {
-		return fmt.Errorf("key %v not found\n", key)
+		return fmt.Errorf("key %q not found\n", key)
 	}
 
 	db.data = slices.Delete(db.data, idx, idx+1)
