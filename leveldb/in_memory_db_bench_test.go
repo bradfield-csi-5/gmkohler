@@ -37,28 +37,39 @@ func init() {
 }
 
 func BenchmarkInMemoryDb_Get(b *testing.B) {
-	for range b.N {
+	keys := make([][]byte, b.N)
+	for j := range b.N {
 		_, err := rand.Read(keyBuf)
 		if err != nil {
 			b.Error("error reading random bytes", err)
 		}
-		_, _ = db.Get(keyBuf)
+		keys[j] = keyBuf
+	}
+	b.ResetTimer()
+	for j := range b.N {
+		_, _ = db.Get(keys[j])
 	}
 }
 
 func BenchmarkInMemoryDb_Has(b *testing.B) {
-	for range b.N {
+	keys := make([][]byte, b.N)
+	for j := range b.N {
 		_, err := rand.Read(keyBuf)
 		if err != nil {
 			b.Error("error reading random bytes", err)
 		}
-		_, _ = db.Has(keyBuf)
+		keys[j] = keyBuf
+	}
+	b.ResetTimer()
+	for j := range b.N {
+		_, _ = db.Has(keys[j])
 	}
 }
 
 func BenchmarkInMemoryDb_Put(b *testing.B) {
 	var err error
-	for range b.N {
+	var entries = make([]dataEntry, b.N)
+	for j := range b.N {
 		_, err = rand.Read(keyBuf)
 		if err != nil {
 			b.Error("error reading random bytes", err)
@@ -67,23 +78,41 @@ func BenchmarkInMemoryDb_Put(b *testing.B) {
 		if err != nil {
 			b.Error("error reading random bytes", err)
 		}
-		_ = db.Put(keyBuf, valBuf)
+		entries[j] = dataEntry{
+			Key:   keyBuf,
+			Value: valBuf,
+		}
+	}
+	b.ResetTimer()
+	for j := range b.N {
+		entry := entries[j]
+		_ = db.Put(entry.Key, entry.Value)
 	}
 }
 
 func BenchmarkInMemoryDb_Delete(b *testing.B) {
 	var err error
-	for range b.N {
+	var keys = make([][]byte, b.N)
+	for j := range b.N {
 		_, err = rand.Read(keyBuf)
 		if err != nil {
 			b.Error("error reading random bytes", err)
 		}
-		_ = db.Delete(keyBuf)
+		keys[j] = keyBuf
+	}
+	b.ResetTimer()
+	for j := range b.N {
+		_ = db.Delete(keys[j])
 	}
 }
 
 func BenchmarkInMemoryDb_RangeScan(b *testing.B) {
-	for range b.N {
+	type keyRange struct {
+		start []byte
+		limit []byte
+	}
+	ranges := make([]keyRange, b.N)
+	for j := range b.N {
 		start := make([]byte, keySize)
 		rand.Read(start)
 		end := make([]byte, keySize)
@@ -91,6 +120,11 @@ func BenchmarkInMemoryDb_RangeScan(b *testing.B) {
 		if bytes.Compare(start, end) > 0 {
 			start, end = end, start
 		}
-		_, _ = db.RangeScan(start, end)
+		ranges[j] = keyRange{start, end}
+	}
+	b.ResetTimer()
+	for j := range b.N {
+		rng := ranges[j]
+		_, _ = db.RangeScan(rng.start, rng.limit)
 	}
 }
