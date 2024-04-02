@@ -53,7 +53,7 @@ func newValueNode(key Key, value Value) skipListNode {
 	forwardNodes := forwardList{}
 	for j := range forwardNodes {
 		// consider a singleton
-		forwardNodes[j] = &nilNode{}
+		forwardNodes[j] = NilNode
 	}
 	return &valueNode{
 		key:          key,
@@ -74,6 +74,8 @@ func newHeaderNode() skipListNode {
 	 */
 	return newValueNode(nil, nil)
 }
+
+var NilNode *nilNode = &nilNode{}
 
 type nilNode struct{}
 

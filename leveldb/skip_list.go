@@ -118,13 +118,32 @@ func (sl *SkipList) Insert(searchKey Key, newValue Value) error {
 }
 
 func (sl *SkipList) Delete(searchKey Key) error {
-	nodesToUpdate := forwardList{}
-	currentNode := sl.header
+	var (
+		nodesToUpdate = forwardList{}
+		currentNode   = sl.header
+		err           error
+	)
 	for currentLevel := sl.level; currentLevel > 0; currentLevel-- {
 		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(searchKey) < 0 {
 			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
 		}
 		nodesToUpdate.SetLevel(currentLevel, currentNode)
+	}
+	currentNode = currentNode.ForwardNodeAtLevel(1)
+	if currentNode.CompareKey(searchKey) == 0 {
+		for j := range sl.level {
+			lvl := j + 1
+			if nodesToUpdate.GetLevel(lvl).ForwardNodeAtLevel(lvl) != currentNode {
+				break
+			}
+			err = nodesToUpdate.GetLevel(lvl).SetForwardNodeAtLevel(lvl, currentNode.ForwardNodeAtLevel(lvl))
+			if err != nil {
+				return err
+			}
+			for sl.level > 1 && sl.header.ForwardNodeAtLevel(sl.level) == NilNode {
+				sl.level--
+			}
+		}
 	}
 	return nil
 }
