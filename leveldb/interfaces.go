@@ -1,7 +1,16 @@
 package leveldb
 
 type Key []byte
+
+func (k Key) String() string {
+	return string(k)
+}
+
 type Value []byte
+
+func (v Value) String() string {
+	return string(v)
+}
 
 type DB interface {
 	// Get gets the value for the given key.  It returns an error if the
