@@ -1,15 +1,18 @@
-package leveldb
+package skiplist
 
-import "bytes"
+import (
+	"bytes"
+	"leveldb"
+)
 
 type skipListNode interface {
 	// CompareKey returns an int whose meaning is like that of a Compare() function:
 	// -1 if less than, 0 if equal, 1 if greater than.
-	CompareKey(key Key) int
+	CompareKey(key leveldb.Key) int
 	// Value returns the value of a node
-	Value() Value
+	Value() leveldb.Value
 	// SetValue sets the value of a node
-	SetValue(value Value)
+	SetValue(value leveldb.Value)
 	// ForwardNodeAtLevel retrieves the "forward" node at a particular level.
 	ForwardNodeAtLevel(lvl level) skipListNode
 	// SetForwardNodeAtLevel sets the "forward" node at a particular level.
@@ -18,15 +21,15 @@ type skipListNode interface {
 
 type forwardList [maxLevel]skipListNode
 
-// GetLevel handles translating the level to an array index to avoid off-by-one issues
-func (f *forwardList) GetLevel(lvl level) skipListNode { return f[lvl-1] }
+// getLevel handles translating the level to an array index to avoid off-by-one issues
+func (f *forwardList) getLevel(lvl level) skipListNode { return f[lvl-1] }
 
-// SetLevel handles translating the level to an array index to avoid off-by-one issues
-func (f *forwardList) SetLevel(lvl level, node skipListNode) { f[lvl-1] = node }
+// setLevel handles translating the level to an array index to avoid off-by-one issues
+func (f *forwardList) setLevel(lvl level, node skipListNode) { f[lvl-1] = node }
 
 type valueNode struct {
-	key          Key
-	value        Value
+	key          leveldb.Key
+	value        leveldb.Value
 	forwardNodes forwardList
 }
 
@@ -36,7 +39,7 @@ func (vn *valueNode) SetForwardNodeAtLevel(lvl level, node skipListNode) error {
 	return nil
 }
 
-func (vn *valueNode) CompareKey(k Key) int {
+func (vn *valueNode) CompareKey(k leveldb.Key) int {
 	return bytes.Compare(vn.key, k)
 }
 
@@ -45,11 +48,11 @@ func (vn *valueNode) ForwardNodeAtLevel(lvl level) skipListNode {
 	return vn.forwardNodes[lvl-1]
 }
 
-func (vn *valueNode) Value() Value { return vn.value }
+func (vn *valueNode) Value() leveldb.Value { return vn.value }
 
-func (vn *valueNode) SetValue(value Value) { vn.value = value }
+func (vn *valueNode) SetValue(value leveldb.Value) { vn.value = value }
 
-func newValueNode(key Key, value Value) skipListNode {
+func newValueNode(key leveldb.Key, value leveldb.Value) skipListNode {
 	forwardNodes := forwardList{}
 	for j := range forwardNodes {
 		// consider a singleton
@@ -87,12 +90,12 @@ func (nn *nilNode) ForwardNodeAtLevel(level) skipListNode {
 	panic("should not ask forward node of nilNode")
 }
 
-func (nn *nilNode) CompareKey(Key) int { return 1 }
+func (nn *nilNode) CompareKey(leveldb.Key) int { return 1 }
 
-func (nn *nilNode) Value() Value {
+func (nn *nilNode) Value() leveldb.Value {
 	panic("should not ask for value of nilNode")
 }
 
-func (nn *nilNode) SetValue(Value) {
+func (nn *nilNode) SetValue(leveldb.Value) {
 	panic("should not ask to set value of nilNode")
 }

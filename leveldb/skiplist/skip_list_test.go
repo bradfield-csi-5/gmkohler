@@ -1,7 +1,8 @@
-package leveldb
+package skiplist
 
 import (
 	"bytes"
+	"leveldb"
 	"testing"
 )
 
@@ -10,13 +11,13 @@ const (
 )
 
 func TestSkipList_Search(t *testing.T) {
-	testData := []dataEntry{
-		{Key("foo"), Value("bar")},
-		{Key("bizz"), Value("buzz")},
-		{Key("jamb"), Value("lamb")},
-		{Key("ball"), Value("fall")},
-		{Key("sun"), Value("moon")},
-		{Key("cloud"), Value("sky")},
+	testData := []leveldb.DataEntry{
+		{leveldb.Key("foo"), leveldb.Value("bar")},
+		{leveldb.Key("bizz"), leveldb.Value("buzz")},
+		{leveldb.Key("jamb"), leveldb.Value("lamb")},
+		{leveldb.Key("ball"), leveldb.Value("fall")},
+		{leveldb.Key("sun"), leveldb.Value("moon")},
+		{leveldb.Key("cloud"), leveldb.Value("sky")},
 	}
 	sl := NewSkipList()
 	for _, datum := range testData {
@@ -37,12 +38,12 @@ func TestSkipList_Search(t *testing.T) {
 
 func TestSkipList_Insert(t *testing.T) {
 	testData := []struct {
-		data         dataEntry
+		data         leveldb.DataEntry
 		shouldUpdate bool
-		newValue     Value
+		newValue     leveldb.Value
 	}{
-		{dataEntry{Key("foo"), Value("bar")}, false, Value("bar")},
-		{dataEntry{Key("bizz"), Value("buzz")}, true, Value("updated")},
+		{data: leveldb.DataEntry{Key: leveldb.Key("foo"), Value: leveldb.Value("bar")}, newValue: leveldb.Value("bar")},
+		{data: leveldb.DataEntry{Key: leveldb.Key("bizz"), Value: leveldb.Value("buzz")}, shouldUpdate: true, newValue: leveldb.Value("updated")},
 	}
 	sl := NewSkipList()
 	for _, datum := range testData {
@@ -51,7 +52,7 @@ func TestSkipList_Insert(t *testing.T) {
 		}
 		if datum.shouldUpdate {
 			if err := sl.Insert(datum.data.Key, datum.newValue); err != nil {
-				t.Fatalf(insertError, dataEntry{datum.data.Key, datum.newValue}, err)
+				t.Fatalf(insertError, leveldb.DataEntry{Key: datum.data.Key, Value: datum.newValue}, err)
 			}
 		}
 	}
@@ -68,15 +69,15 @@ func TestSkipList_Insert(t *testing.T) {
 
 func TestSkipList_Delete(t *testing.T) {
 	testData := []struct {
-		data            dataEntry
+		data            leveldb.DataEntry
 		shouldBeDeleted bool
 	}{
-		{dataEntry{Key("foo"), Value("bar")}, false},
-		{dataEntry{Key("bizz"), Value("buzz")}, true},
-		{dataEntry{Key("jamb"), Value("lamb")}, false},
-		{dataEntry{Key("ball"), Value("fall")}, true},
-		{dataEntry{Key("sun"), Value("moon")}, false},
-		{dataEntry{Key("cloud"), Value("sky")}, true},
+		{leveldb.DataEntry{Key: leveldb.Key("foo"), Value: leveldb.Value("bar")}, false},
+		{leveldb.DataEntry{Key: leveldb.Key("bizz"), Value: leveldb.Value("buzz")}, true},
+		{leveldb.DataEntry{Key: leveldb.Key("jamb"), Value: leveldb.Value("lamb")}, false},
+		{leveldb.DataEntry{Key: leveldb.Key("ball"), Value: leveldb.Value("fall")}, true},
+		{leveldb.DataEntry{Key: leveldb.Key("sun"), Value: leveldb.Value("moon")}, false},
+		{leveldb.DataEntry{Key: leveldb.Key("cloud"), Value: leveldb.Value("sky")}, true},
 	}
 	sl := NewSkipList()
 	for _, datum := range testData {

@@ -1,8 +1,9 @@
-package leveldb
+package skiplist
 
 import (
 	"errors"
 	"fmt"
+	"leveldb"
 	"math/rand/v2"
 )
 
@@ -43,7 +44,7 @@ func NewSkipList() SkipList {
 // the search moves down to the next level.  When we can make no more
 // progress at level 1, we must be immediately in front of the node that
 // contains the desired element (if it is in the list).
-func (sl *SkipList) Search(searchKey Key) (Value, error) {
+func (sl *SkipList) Search(searchKey leveldb.Key) (leveldb.Value, error) {
 	var currentNode = sl.header
 	var currentLevel level
 	for currentLevel = sl.level; currentLevel > 0; currentLevel-- {
@@ -70,7 +71,7 @@ func (sl *SkipList) Search(searchKey Key) (Value, error) {
 // initialize portions of the update vector.  After each deletion, we check
 // if we have deleted the maximum element of the list and if so, decrease the
 // maximum level of the list.
-func (sl *SkipList) Insert(searchKey Key, newValue Value) error {
+func (sl *SkipList) Insert(searchKey leveldb.Key, newValue leveldb.Value) error {
 	var (
 		lastNodeTraversedPerLevel = forwardList{}
 		currentNode               = sl.header
@@ -80,7 +81,7 @@ func (sl *SkipList) Insert(searchKey Key, newValue Value) error {
 		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(searchKey) < 0 {
 			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
 		}
-		lastNodeTraversedPerLevel.SetLevel(currentLevel, currentNode)
+		lastNodeTraversedPerLevel.setLevel(currentLevel, currentNode)
 	}
 	currentNode = currentNode.ForwardNodeAtLevel(1)
 	if currentNode.CompareKey(searchKey) == 0 {
@@ -91,13 +92,13 @@ func (sl *SkipList) Insert(searchKey Key, newValue Value) error {
 	insertionLevel := randomLevel()
 	if insertionLevel > sl.level {
 		for lvl := sl.level + 1; lvl <= insertionLevel; lvl++ {
-			lastNodeTraversedPerLevel.SetLevel(lvl, sl.header)
+			lastNodeTraversedPerLevel.setLevel(lvl, sl.header)
 		}
 		sl.level = insertionLevel
 	}
 	newNode := newValueNode(searchKey, newValue)
 	for lvl := level(1); lvl <= insertionLevel; lvl++ {
-		nodeToUpdate := lastNodeTraversedPerLevel.GetLevel(lvl)
+		nodeToUpdate := lastNodeTraversedPerLevel.getLevel(lvl)
 		if nodeToUpdate == nil {
 			continue
 		}
@@ -117,7 +118,7 @@ func (sl *SkipList) Insert(searchKey Key, newValue Value) error {
 	return nil
 }
 
-func (sl *SkipList) Delete(searchKey Key) error {
+func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 	var (
 		nodesToUpdate = forwardList{}
 		currentNode   = sl.header
@@ -127,16 +128,16 @@ func (sl *SkipList) Delete(searchKey Key) error {
 		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(searchKey) < 0 {
 			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
 		}
-		nodesToUpdate.SetLevel(currentLevel, currentNode)
+		nodesToUpdate.setLevel(currentLevel, currentNode)
 	}
 	currentNode = currentNode.ForwardNodeAtLevel(1)
 	if currentNode.CompareKey(searchKey) == 0 {
 		for j := range sl.level {
 			lvl := j + 1
-			if nodesToUpdate.GetLevel(lvl).ForwardNodeAtLevel(lvl) != currentNode {
+			if nodesToUpdate.getLevel(lvl).ForwardNodeAtLevel(lvl) != currentNode {
 				break
 			}
-			err = nodesToUpdate.GetLevel(lvl).SetForwardNodeAtLevel(lvl, currentNode.ForwardNodeAtLevel(lvl))
+			err = nodesToUpdate.getLevel(lvl).SetForwardNodeAtLevel(lvl, currentNode.ForwardNodeAtLevel(lvl))
 			if err != nil {
 				return err
 			}

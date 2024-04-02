@@ -7,16 +7,16 @@ import (
 )
 
 type inMemoryDb struct {
-	data []dataEntry
+	data []DataEntry
 }
 
 type inMemoryIterator struct {
-	data []dataEntry
+	data []DataEntry
 	curr int
 	err  error
 }
 
-func NewInMemoryIterator(data []dataEntry) Iterator {
+func NewInMemoryIterator(data []DataEntry) Iterator {
 	return &inMemoryIterator{
 		data: data,
 		curr: -1,
@@ -48,7 +48,7 @@ func (i *inMemoryIterator) Value() Value {
 	return i.data[i.curr].Value
 }
 
-type dataEntry struct {
+type DataEntry struct {
 	Key   Key
 	Value Value
 }
@@ -57,7 +57,7 @@ func (db *inMemoryDb) Get(key Key) (Value, error) {
 	var idx, found = slices.BinarySearchFunc(
 		db.data,
 		key,
-		func(datum dataEntry, target Key) int { return bytes.Compare(datum.Key, target) },
+		func(datum DataEntry, target Key) int { return bytes.Compare(datum.Key, target) },
 	)
 	if !found {
 		return nil, fmt.Errorf("entry not found for key %s\n", key)
@@ -76,7 +76,7 @@ func (db *inMemoryDb) Put(key Key, value Value) error {
 	if keyExists {
 		db.data[idx].Value = value
 	} else {
-		db.data = append(db.data, dataEntry{
+		db.data = append(db.data, DataEntry{
 			Key:   key,
 			Value: value,
 		})
@@ -111,12 +111,12 @@ func (db *inMemoryDb) findEntryByKey(key Key) (int, bool) {
 	return slices.BinarySearchFunc(
 		db.data,
 		key,
-		func(datum dataEntry, targetKey Key) int { return bytes.Compare(datum.Key, targetKey) },
+		func(datum DataEntry, targetKey Key) int { return bytes.Compare(datum.Key, targetKey) },
 	)
 }
 
 func (db *inMemoryDb) sortData() {
-	slices.SortFunc(db.data, func(d1, d2 dataEntry) int {
+	slices.SortFunc(db.data, func(d1, d2 DataEntry) int {
 		return bytes.Compare(d1.Key, d2.Key)
 	})
 }

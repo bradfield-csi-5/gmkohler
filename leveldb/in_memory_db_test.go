@@ -6,7 +6,7 @@ import (
 )
 
 func populatedDb() DB {
-	return &inMemoryDb{data: []dataEntry{
+	return &inMemoryDb{data: []DataEntry{
 		{
 			Key:   Key("eggs"),
 			Value: Value("scrambled"),
@@ -18,7 +18,7 @@ func populatedDb() DB {
 	}}
 }
 
-func emptyDb() DB { return &inMemoryDb{data: make([]dataEntry, 0)} }
+func emptyDb() DB { return &inMemoryDb{data: make([]DataEntry, 0)} }
 
 func TestInMemoryDb_Get_NoEntry(t *testing.T) {
 	var db = emptyDb()
