@@ -1,6 +1,9 @@
 package skiplist
 
-import "leveldb"
+import (
+	"errors"
+	"leveldb"
+)
 
 type skipListDb struct {
 	sl SkipList
@@ -18,7 +21,11 @@ func (s *skipListDb) Get(key leveldb.Key) (leveldb.Value, error) {
 
 func (s *skipListDb) Has(key leveldb.Key) (bool, error) {
 	val, err := s.sl.Search(key)
-	if err != nil { // FIXME: relay "not found" search to false, nil
+	if err != nil { // FIXME: slow because of reflection
+		var notFoundError *leveldb.NotFoundError
+		if errors.As(err, &notFoundError) {
+			return false, nil
+		}
 		return false, err
 	}
 	return val != nil, nil

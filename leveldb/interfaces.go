@@ -1,5 +1,7 @@
 package leveldb
 
+import "fmt"
+
 type Key []byte
 
 func (k Key) String() string {
@@ -15,6 +17,18 @@ func (v Value) String() string {
 type DataEntry struct {
 	Key   Key
 	Value Value
+}
+
+type NotFoundError struct {
+	key Key
+}
+
+func NewNotFoundError(key Key) error {
+	return &NotFoundError{key: key}
+}
+
+func (err NotFoundError) Error() string {
+	return fmt.Sprintf("entry not found for key %q", err.key)
 }
 
 type DB interface {

@@ -11,6 +11,14 @@ type inMemoryDb struct {
 	data []leveldb.DataEntry
 }
 
+// NewInMemoryDb copies its input slice into a new instance to prevent the database from deleting entries in a reference
+// shared by other properties.
+func NewInMemoryDb(data []leveldb.DataEntry) leveldb.DB {
+	var copied = make([]leveldb.DataEntry, len(data))
+	copy(copied, data)
+	return &inMemoryDb{data: copied}
+}
+
 type inMemoryIterator struct {
 	data []leveldb.DataEntry
 	curr int
@@ -56,7 +64,7 @@ func (db *inMemoryDb) Get(key leveldb.Key) (leveldb.Value, error) {
 		func(datum leveldb.DataEntry, target leveldb.Key) int { return bytes.Compare(datum.Key, target) },
 	)
 	if !found {
-		return nil, fmt.Errorf("entry not found for key %s\n", key)
+		return nil, leveldb.NewNotFoundError(key)
 	}
 	return db.data[idx].Value, nil
 }

@@ -3,8 +3,6 @@ package skiplist
 // translating https://www.epaperpress.com/sortsearch/download/skiplist.pdf
 
 import (
-	"errors"
-	"fmt"
 	"leveldb"
 	"math/rand/v2"
 )
@@ -58,7 +56,7 @@ func (sl *SkipList) Search(searchKey leveldb.Key) (leveldb.Value, error) {
 	if currentNode.CompareKey(searchKey) == 0 {
 		return currentNode.Value(), nil
 	} else {
-		return nil, errors.New(fmt.Sprintf("searchKey %q not found", searchKey))
+		return nil, leveldb.NewNotFoundError(searchKey)
 	}
 }
 
@@ -146,6 +144,8 @@ func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 				sl.level--
 			}
 		}
+	} else {
+		return leveldb.NewNotFoundError(searchKey)
 	}
 	return nil
 }
