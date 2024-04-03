@@ -1,28 +1,29 @@
-package leveldb
+package inmem
 
 import (
 	"bytes"
+	"leveldb"
 	"testing"
 )
 
-func populatedDb() DB {
-	return &inMemoryDb{data: []DataEntry{
+func populatedDb() leveldb.DB {
+	return &inMemoryDb{data: []leveldb.DataEntry{
 		{
-			Key:   Key("eggs"),
-			Value: Value("scrambled"),
+			Key:   leveldb.Key("eggs"),
+			Value: leveldb.Value("scrambled"),
 		},
 		{
-			Key:   Key("spam"),
-			Value: Value("ham"),
+			Key:   leveldb.Key("spam"),
+			Value: leveldb.Value("ham"),
 		},
 	}}
 }
 
-func emptyDb() DB { return &inMemoryDb{data: make([]DataEntry, 0)} }
+func emptyDb() leveldb.DB { return &inMemoryDb{data: make([]leveldb.DataEntry, 0)} }
 
 func TestInMemoryDb_Get_NoEntry(t *testing.T) {
 	var db = emptyDb()
-	val, err := db.Get(Key("foo"))
+	val, err := db.Get(leveldb.Key("foo"))
 	if err == nil || val != nil {
 		t.Errorf("expected error when calling db.Get() for non-existent entry")
 	}
@@ -30,7 +31,7 @@ func TestInMemoryDb_Get_NoEntry(t *testing.T) {
 
 func TestInMemoryDb_Get_EntryExists(t *testing.T) {
 	var db = populatedDb()
-	val, err := db.Get(Key("eggs"))
+	val, err := db.Get(leveldb.Key("eggs"))
 	if err != nil {
 		t.Fatal("unexpected error", err)
 	}
@@ -42,7 +43,7 @@ func TestInMemoryDb_Get_EntryExists(t *testing.T) {
 
 func TestInMemoryDb_Has_True(t *testing.T) {
 	var db = populatedDb()
-	var keyExists, err = db.Has(Key("eggs"))
+	var keyExists, err = db.Has(leveldb.Key("eggs"))
 	if err != nil {
 		t.Fatal("unexpected error", err)
 	}
@@ -53,7 +54,7 @@ func TestInMemoryDb_Has_True(t *testing.T) {
 
 func TestInMemoryDb_Has_False(t *testing.T) {
 	var db = populatedDb()
-	var keyExists, err = db.Has(Key("foo"))
+	var keyExists, err = db.Has(leveldb.Key("foo"))
 	if err != nil {
 		t.Fatal("unexpected error", err)
 	}
@@ -64,11 +65,11 @@ func TestInMemoryDb_Has_False(t *testing.T) {
 
 func TestInMemoryDb_Put_NewEntry(t *testing.T) {
 	db := populatedDb()
-	err := db.Put(Key("foo"), Value("bar"))
+	err := db.Put(leveldb.Key("foo"), leveldb.Value("bar"))
 	if err != nil {
 		t.Fatal("unexpected error when putting value", err)
 	}
-	val, err := db.Get(Key("foo"))
+	val, err := db.Get(leveldb.Key("foo"))
 	if err != nil {
 		t.Fatal("unexpected error when getting value", err)
 	}
@@ -80,11 +81,11 @@ func TestInMemoryDb_Put_NewEntry(t *testing.T) {
 
 func TestInMemoryDb_Put_UpdateEntry(t *testing.T) {
 	db := populatedDb()
-	err := db.Put(Key("eggs"), Value("poached"))
+	err := db.Put(leveldb.Key("eggs"), leveldb.Value("poached"))
 	if err != nil {
 		t.Fatal("unexpected error when putting value", err)
 	}
-	val, err := db.Get(Key("eggs"))
+	val, err := db.Get(leveldb.Key("eggs"))
 	if err != nil {
 		t.Fatal("unexpected error when getting value", err)
 	}
@@ -96,15 +97,15 @@ func TestInMemoryDb_Put_UpdateEntry(t *testing.T) {
 
 func TestInMemoryDb_Delete_Success(t *testing.T) {
 	db := populatedDb()
-	err := db.Delete(Key("eggs"))
+	err := db.Delete(leveldb.Key("eggs"))
 	if err != nil {
 		t.Fatal("unexpected error while deleting key", err)
 	}
-	_, err = db.Get(Key("eggs"))
+	_, err = db.Get(leveldb.Key("eggs"))
 	if err == nil {
 		t.Fatal("expected an error getting deleted key, but did not get one")
 	}
-	err = db.Delete(Key("eggs"))
+	err = db.Delete(leveldb.Key("eggs"))
 	if err == nil {
 		t.Fatal("expected an error deleting non-existent key, but did not get one")
 	}
@@ -112,14 +113,14 @@ func TestInMemoryDb_Delete_Success(t *testing.T) {
 
 func TestInMemoryDb_RangeScan(t *testing.T) {
 	data := []struct {
-		key   Key
-		value Value
+		key   leveldb.Key
+		value leveldb.Value
 	}{
-		{Key("abc"), Value("ABC")},
-		{Key("abd"), Value("ABD")},
-		{Key("abe"), Value("ABE")},
-		{Key("abf"), Value("ABF")},
-		{Key("abg"), Value("ABG")},
+		{leveldb.Key("abc"), leveldb.Value("ABC")},
+		{leveldb.Key("abd"), leveldb.Value("ABD")},
+		{leveldb.Key("abe"), leveldb.Value("ABE")},
+		{leveldb.Key("abf"), leveldb.Value("ABF")},
+		{leveldb.Key("abg"), leveldb.Value("ABG")},
 	}
 	db := populatedDb()
 	var err error
@@ -129,7 +130,7 @@ func TestInMemoryDb_RangeScan(t *testing.T) {
 			t.Fatal("unexpected error executing Put()", err)
 		}
 	}
-	results, err := db.RangeScan(Key("abc"), Key("abf"))
+	results, err := db.RangeScan(leveldb.Key("abc"), leveldb.Key("abf"))
 	if err != nil {
 		t.Fatal("unexpected error executing RangeScan()", err)
 	}

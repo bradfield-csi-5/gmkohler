@@ -12,6 +12,11 @@ func (v Value) String() string {
 	return string(v)
 }
 
+type DataEntry struct {
+	Key   Key
+	Value Value
+}
+
 type DB interface {
 	// Get gets the value for the given key.  It returns an error if the
 	// DB does not contain the key.

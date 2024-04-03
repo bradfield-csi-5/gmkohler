@@ -3,6 +3,7 @@ package skiplist
 import (
 	"bytes"
 	"leveldb"
+	"slices"
 	"testing"
 )
 
@@ -119,5 +120,36 @@ func TestSkipList_Delete(t *testing.T) {
 				)
 			}
 		}
+	}
+}
+
+func TestSkipList_Scan(t *testing.T) {
+	testData := []leveldb.DataEntry{
+		{Key: leveldb.Key("ball"), Value: leveldb.Value("fall")},
+		{Key: leveldb.Key("bizz"), Value: leveldb.Value("buzz")},
+		{Key: leveldb.Key("cloud"), Value: leveldb.Value("sky")},
+		{Key: leveldb.Key("foo"), Value: leveldb.Value("bar")},
+		{Key: leveldb.Key("jamb"), Value: leveldb.Value("lamb")},
+		{Key: leveldb.Key("sun"), Value: leveldb.Value("moon")},
+	}
+	sl := NewSkipList()
+	for _, datum := range testData {
+		if err := sl.Insert(datum.Key, datum.Value); err != nil {
+			t.Fatalf(insertError, datum, err)
+		}
+	}
+	expectedValues := []leveldb.Value{
+		leveldb.Value("buzz"),
+		leveldb.Value("sky"),
+		leveldb.Value("bar"),
+		leveldb.Value("lamb"),
+	}
+
+	values, err := sl.Scan(leveldb.Key("bar"), leveldb.Key("saloon"))
+	if err != nil {
+		t.Fatal("unexpected error calling SkipList.Scan()", err)
+	}
+	if !slices.EqualFunc(values, expectedValues, func(v1, v2 leveldb.Value) bool { return bytes.Equal(v1, v2) }) {
+		t.Fatalf("expected values %v, got %v", expectedValues, values)
 	}
 }

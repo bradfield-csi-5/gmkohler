@@ -10,6 +10,8 @@ type skipListNode interface {
 	// -1 if less than, 0 if equal, 1 if greater than.
 	CompareKey(key leveldb.Key) int
 	// Value returns the value of a node
+	Key() leveldb.Key
+	// Value returns the value of a node
 	Value() leveldb.Value
 	// SetValue sets the value of a node
 	SetValue(value leveldb.Value)
@@ -48,6 +50,7 @@ func (vn *valueNode) ForwardNodeAtLevel(lvl level) skipListNode {
 	return vn.forwardNodes[lvl-1]
 }
 
+func (vn *valueNode) Key() leveldb.Key     { return vn.key }
 func (vn *valueNode) Value() leveldb.Value { return vn.value }
 
 func (vn *valueNode) SetValue(value leveldb.Value) { vn.value = value }
@@ -91,6 +94,10 @@ func (nn *nilNode) ForwardNodeAtLevel(level) skipListNode {
 }
 
 func (nn *nilNode) CompareKey(leveldb.Key) int { return 1 }
+
+func (nn *nilNode) Key() leveldb.Key {
+	panic("should not ask for key of nilNode")
+}
 
 func (nn *nilNode) Value() leveldb.Value {
 	panic("should not ask for value of nilNode")

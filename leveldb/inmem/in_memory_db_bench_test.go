@@ -1,8 +1,9 @@
-package leveldb
+package inmem
 
 import (
 	"bytes"
 	"crypto/rand"
+	"leveldb"
 	"testing"
 )
 
@@ -13,14 +14,14 @@ const (
 )
 
 var (
-	db     DB
+	db     leveldb.DB
 	keyBuf = make([]byte, keySize)
 	valBuf = make([]byte, valSize)
 )
 
 func init() {
 	var err error
-	data := make([]DataEntry, dataSize)
+	data := make([]leveldb.DataEntry, dataSize)
 	for j := range dataSize {
 		if _, err = rand.Read(keyBuf); err != nil {
 			panic(err)
@@ -28,7 +29,7 @@ func init() {
 		if _, err = rand.Read(valBuf); err != nil {
 			panic(err)
 		}
-		data[j] = DataEntry{
+		data[j] = leveldb.DataEntry{
 			Key:   keyBuf,
 			Value: valBuf,
 		}
@@ -68,7 +69,7 @@ func BenchmarkInMemoryDb_Has(b *testing.B) {
 
 func BenchmarkInMemoryDb_Put(b *testing.B) {
 	var err error
-	var entries = make([]DataEntry, b.N)
+	var entries = make([]leveldb.DataEntry, b.N)
 	for j := range b.N {
 		_, err = rand.Read(keyBuf)
 		if err != nil {
@@ -78,7 +79,7 @@ func BenchmarkInMemoryDb_Put(b *testing.B) {
 		if err != nil {
 			b.Error("error reading random bytes", err)
 		}
-		entries[j] = DataEntry{
+		entries[j] = leveldb.DataEntry{
 			Key:   keyBuf,
 			Value: valBuf,
 		}

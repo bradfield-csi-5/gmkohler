@@ -1,5 +1,7 @@
 package skiplist
 
+// translating https://www.epaperpress.com/sortsearch/download/skiplist.pdf
+
 import (
 	"errors"
 	"fmt"
@@ -46,8 +48,7 @@ func NewSkipList() SkipList {
 // contains the desired element (if it is in the list).
 func (sl *SkipList) Search(searchKey leveldb.Key) (leveldb.Value, error) {
 	var currentNode = sl.header
-	var currentLevel level
-	for currentLevel = sl.level; currentLevel > 0; currentLevel-- {
+	for currentLevel := sl.level; currentLevel > 0; currentLevel-- {
 		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(searchKey) < 0 {
 			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
 		}
@@ -147,6 +148,33 @@ func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 		}
 	}
 	return nil
+}
+
+func (sl *SkipList) Scan(start, limit leveldb.Key) ([]leveldb.Value, error) {
+	var err error
+	nearestNode, err := sl.traverseUntil(start)
+	firstNode := nearestNode.ForwardNodeAtLevel(1)
+	if err != nil {
+		return nil, err
+	}
+	var values []leveldb.Value
+	for currentNode := firstNode; currentNode.CompareKey(limit) <= 0; currentNode = currentNode.ForwardNodeAtLevel(1) {
+		values = append(values, currentNode.Value())
+	}
+	return values, nil
+}
+
+// traverseUntil returns a node that is in the spot where the first-level forward entry would be the key, or would be
+// greater than the key.  In other words, it returns the node just before the desired key, whether or not that key
+// exists.
+func (sl *SkipList) traverseUntil(key leveldb.Key) (skipListNode, error) {
+	var currentNode = sl.header
+	for currentLevel := sl.level; currentLevel > 0; currentLevel-- {
+		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(key) < 0 {
+			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
+		}
+	}
+	return currentNode, nil
 }
 
 // randomLevel() selects a level between 1 and the maxLevel.  Note that this is "base 1" and should
