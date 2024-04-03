@@ -40,7 +40,7 @@ func (s *skipListDb) Delete(key leveldb.Key) error {
 }
 
 func (s *skipListDb) RangeScan(start leveldb.Key, limit leveldb.Key) (leveldb.Iterator, error) {
-	precedingNode, err := s.sl.traverseUntil(start)
+	precedingNode, err := s.sl.traverseUntil(start, nil)
 	if err != nil {
 		return nil, err
 	}
