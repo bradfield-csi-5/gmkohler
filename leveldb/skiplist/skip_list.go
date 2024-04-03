@@ -45,11 +45,9 @@ func NewSkipList() SkipList {
 // progress at level 1, we must be immediately in front of the node that
 // contains the desired element (if it is in the list).
 func (sl *SkipList) Search(searchKey leveldb.Key) (leveldb.Value, error) {
-	var currentNode = sl.header
-	for currentLevel := sl.level; currentLevel > 0; currentLevel-- {
-		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(searchKey) < 0 {
-			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
-		}
+	currentNode, err := sl.traverseUntil(searchKey, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	currentNode = currentNode.ForwardNodeAtLevel(1)
@@ -73,14 +71,13 @@ func (sl *SkipList) Search(searchKey leveldb.Key) (leveldb.Value, error) {
 func (sl *SkipList) Insert(searchKey leveldb.Key, newValue leveldb.Value) error {
 	var (
 		lastNodeTraversedPerLevel = forwardList{}
-		currentNode               = sl.header
+		currentNode               skipListNode
+		err                       error
 	)
 
-	for currentLevel := sl.level; currentLevel > 0; currentLevel-- {
-		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(searchKey) < 0 {
-			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
-		}
-		lastNodeTraversedPerLevel.setLevel(currentLevel, currentNode)
+	currentNode, err = sl.traverseUntil(searchKey, lastNodeTraversedPerLevel.setLevel)
+	if err != nil {
+		return err
 	}
 	currentNode = currentNode.ForwardNodeAtLevel(1)
 	if currentNode.CompareKey(searchKey) == 0 {
@@ -120,14 +117,12 @@ func (sl *SkipList) Insert(searchKey leveldb.Key, newValue leveldb.Value) error 
 func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 	var (
 		nodesToUpdate = forwardList{}
-		currentNode   = sl.header
+		currentNode   skipListNode
 		err           error
 	)
-	for currentLevel := sl.level; currentLevel > 0; currentLevel-- {
-		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(searchKey) < 0 {
-			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
-		}
-		nodesToUpdate.setLevel(currentLevel, currentNode)
+	currentNode, err = sl.traverseUntil(searchKey, nodesToUpdate.setLevel)
+	if err != nil {
+		return err
 	}
 	currentNode = currentNode.ForwardNodeAtLevel(1)
 	if currentNode.CompareKey(searchKey) == 0 {
@@ -152,11 +147,11 @@ func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 
 func (sl *SkipList) Scan(start, limit leveldb.Key) ([]leveldb.Value, error) {
 	var err error
-	nearestNode, err := sl.traverseUntil(start)
-	firstNode := nearestNode.ForwardNodeAtLevel(1)
+	nearestNode, err := sl.traverseUntil(start, nil)
 	if err != nil {
 		return nil, err
 	}
+	firstNode := nearestNode.ForwardNodeAtLevel(1)
 	var values []leveldb.Value
 	for currentNode := firstNode; currentNode.CompareKey(limit) <= 0; currentNode = currentNode.ForwardNodeAtLevel(1) {
 		values = append(values, currentNode.Value())
@@ -167,11 +162,14 @@ func (sl *SkipList) Scan(start, limit leveldb.Key) ([]leveldb.Value, error) {
 // traverseUntil returns a node that is in the spot where the first-level forward entry would be the key, or would be
 // greater than the key.  In other words, it returns the node just before the desired key, whether or not that key
 // exists.
-func (sl *SkipList) traverseUntil(key leveldb.Key) (skipListNode, error) {
+func (sl *SkipList) traverseUntil(key leveldb.Key, listener func(level, skipListNode)) (skipListNode, error) {
 	var currentNode = sl.header
 	for currentLevel := sl.level; currentLevel > 0; currentLevel-- {
 		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(key) < 0 {
 			currentNode = currentNode.ForwardNodeAtLevel(currentLevel)
+		}
+		if listener != nil {
+			listener(currentLevel, currentNode)
 		}
 	}
 	return currentNode, nil
