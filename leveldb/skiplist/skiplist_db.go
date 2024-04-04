@@ -1,26 +1,60 @@
 package skiplist
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
+	"io"
 	"leveldb"
+	"leveldb/wal"
 )
 
 type skipListDb struct {
-	sl SkipList
+	sl  SkipList
+	wal *wal.Log
 }
 
-func NewSkipListDb() leveldb.DB {
+func NewSkipListDbFromWal(rw io.ReadWriter) (leveldb.DB, error) {
+	reader := bufio.NewReader(rw)
+	entries, err := wal.DecodeLogFile(reader)
+	if err != nil {
+		return nil, err
+	}
+	db := NewSkipListDb(rw)
+	for _, entry := range entries {
+		switch entry.Operation {
+		case wal.OpPut:
+			if err := db.Put(entry.Key, entry.Value); err != nil {
+				return nil, err
+			}
+		case wal.OpDelete:
+			if err := db.Delete(entry.Key); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("unrecognized opcode %s", entry.Operation)
+		}
+	}
+	return db, nil
+}
+func NewSkipListDb(readWriter io.ReadWriter) leveldb.DB {
+	var log *wal.Log
+	if readWriter != nil { // hacky, think of nicer way
+		log = wal.NewLog(readWriter)
+	}
+
 	return &skipListDb{
-		sl: NewSkipList(),
+		sl:  NewSkipList(),
+		wal: log,
 	}
 }
 
-func (s *skipListDb) Get(key leveldb.Key) (leveldb.Value, error) {
-	return s.sl.Search(key)
+func (db *skipListDb) Get(key leveldb.Key) (leveldb.Value, error) {
+	return db.sl.Search(key)
 }
 
-func (s *skipListDb) Has(key leveldb.Key) (bool, error) {
-	val, err := s.sl.Search(key)
+func (db *skipListDb) Has(key leveldb.Key) (bool, error) {
+	val, err := db.sl.Search(key)
 	if err != nil { // FIXME: slow because of reflection
 		var notFoundError *leveldb.NotFoundError
 		if errors.As(err, &notFoundError) {
@@ -31,16 +65,22 @@ func (s *skipListDb) Has(key leveldb.Key) (bool, error) {
 	return val != nil, nil
 }
 
-func (s *skipListDb) Put(key leveldb.Key, value leveldb.Value) error {
-	return s.sl.Insert(key, value)
+func (db *skipListDb) Put(key leveldb.Key, value leveldb.Value) error {
+	if err := db.wal.Put(key, value); err != nil {
+		return err
+	}
+	return db.sl.Insert(key, value)
 }
 
-func (s *skipListDb) Delete(key leveldb.Key) error {
-	return s.sl.Delete(key)
+func (db *skipListDb) Delete(key leveldb.Key) error {
+	if err := db.wal.Delete(key); err != nil {
+		return err
+	}
+	return db.sl.Delete(key)
 }
 
-func (s *skipListDb) RangeScan(start leveldb.Key, limit leveldb.Key) (leveldb.Iterator, error) {
-	precedingNode, err := s.sl.traverseUntil(start, nil)
+func (db *skipListDb) RangeScan(start leveldb.Key, limit leveldb.Key) (leveldb.Iterator, error) {
+	precedingNode, err := db.sl.traverseUntil(start, nil)
 	if err != nil {
 		return nil, err
 	}
