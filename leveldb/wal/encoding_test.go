@@ -6,19 +6,20 @@ import (
 	"testing"
 )
 
-func TestDataEntry_GobEncode(t *testing.T) {
+func TestDataEntry_Encode(t *testing.T) {
 	entries := []DbOperation{
 		{Operation: opDelete, Key: leveldb.Key("eggs")},
 		{Operation: opPut, Key: leveldb.Key("eggs"), Value: leveldb.Value("over easy")},
 	}
 	for _, entry := range entries {
 		t.Run(entry.Operation.String(), func(t *testing.T) {
-			encoded, err := entry.GobEncode()
+			encoded, err := entry.encode()
 			if err != nil {
 				t.Fatal("error encoding DbOperation:", err)
 			}
+			payload := encoded[8:] // remove the "total length"
 			decodedEntry := new(DbOperation)
-			if err := decodedEntry.GobDecode(encoded); err != nil {
+			if err := decodedEntry.decode(payload); err != nil {
 				t.Fatal("error decoding encoded DbOperation:", err)
 			}
 			if entry.Operation != decodedEntry.Operation {

@@ -17,13 +17,13 @@ var testImpls = []TestSetup{
 	{
 		Name: "SkipList",
 		NewDb: func(entries []leveldb.DataEntry) leveldb.DB {
-			sl := skiplist.NewSkipListDb()
+			sl := skiplist.NewSkipListDb(nil)
 			for _, entry := range entries {
 				_ = sl.Put(entry.Key, entry.Value)
 			}
 			return sl
 		},
-		EmptyDb: skiplist.NewSkipListDb,
+		EmptyDb: func() leveldb.DB { return skiplist.NewSkipListDb(nil) },
 	},
 }
 

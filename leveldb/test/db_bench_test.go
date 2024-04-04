@@ -42,7 +42,7 @@ func init() {
 			Value: valBuf,
 		}
 	}
-	slDb := skiplist.NewSkipListDb()
+	slDb := skiplist.NewSkipListDb(nil)
 	for _, datum := range data {
 		if err := slDb.Put(datum.Key, datum.Value); err != nil {
 			panic("failed setup")
