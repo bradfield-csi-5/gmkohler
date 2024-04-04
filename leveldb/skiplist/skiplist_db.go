@@ -1,7 +1,9 @@
 package skiplist
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"leveldb"
 	"leveldb/wal"
@@ -12,10 +14,33 @@ type skipListDb struct {
 	wal *wal.Log
 }
 
-func NewSkipListDb(writer io.Writer) leveldb.DB {
+func NewSkipListDbFromWal(rw io.ReadWriter) (leveldb.DB, error) {
+	reader := bufio.NewReader(rw)
+	entries, err := wal.DecodeLogFile(reader)
+	if err != nil {
+		return nil, err
+	}
+	db := NewSkipListDb(rw)
+	for _, entry := range entries {
+		switch entry.Operation {
+		case wal.OpPut:
+			if err := db.Put(entry.Key, entry.Value); err != nil {
+				return nil, err
+			}
+		case wal.OpDelete:
+			if err := db.Delete(entry.Key); err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("unrecognized opcode %s", entry.Operation)
+		}
+	}
+	return db, nil
+}
+func NewSkipListDb(readWriter io.ReadWriter) leveldb.DB {
 	var log *wal.Log
-	if writer != nil { // hacky, think of nicer way
-		log = wal.NewLog(writer)
+	if readWriter != nil { // hacky, think of nicer way
+		log = wal.NewLog(readWriter)
 	}
 
 	return &skipListDb{

@@ -8,8 +8,8 @@ import (
 
 func TestDataEntry_Encode(t *testing.T) {
 	entries := []DbOperation{
-		{Operation: opDelete, Key: leveldb.Key("eggs")},
-		{Operation: opPut, Key: leveldb.Key("eggs"), Value: leveldb.Value("over easy")},
+		{Operation: OpDelete, Key: leveldb.Key("eggs")},
+		{Operation: OpPut, Key: leveldb.Key("eggs"), Value: leveldb.Value("over easy")},
 	}
 	for _, entry := range entries {
 		t.Run(entry.Operation.String(), func(t *testing.T) {

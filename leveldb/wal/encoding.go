@@ -17,22 +17,22 @@ const (
 
 var byteOrder binary.ByteOrder = binary.LittleEndian
 
-type opcode uint8
+type Opcode uint8
 
-func (o opcode) String() string {
+func (o Opcode) String() string {
 	switch o {
-	case opPut:
+	case OpPut:
 		return "PUT"
-	case opDelete:
+	case OpDelete:
 		return "DELETE"
 	default:
 		return "UNKNOWN"
 	}
 }
 
-func (o opcode) includeValue() bool {
+func (o Opcode) includeValue() bool {
 	switch o {
-	case opPut:
+	case OpPut:
 		return true
 	default:
 		return false
@@ -40,13 +40,13 @@ func (o opcode) includeValue() bool {
 }
 
 const (
-	_ opcode = iota
-	opPut
-	opDelete
+	_ Opcode = iota
+	OpPut
+	OpDelete
 )
 
 type DbOperation struct {
-	Operation opcode
+	Operation Opcode
 	Key       leveldb.Key
 	Value     leveldb.Value
 }
@@ -97,7 +97,7 @@ func (e *DbOperation) decode(i []byte) error {
 		key       leveldb.Key
 		value     leveldb.Value
 		lenPtr    = new(uint64)
-		opcodePtr = new(opcode)
+		opcodePtr = new(Opcode)
 	)
 	if err = binary.Read(buf, byteOrder, opcodePtr); err != nil {
 		return err

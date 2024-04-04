@@ -32,7 +32,7 @@ func (log *Log) Put(key leveldb.Key, value leveldb.Value) error {
 		return nil
 	}
 	return log.write(DbOperation{
-		Operation: opPut,
+		Operation: OpPut,
 		Key:       key,
 		Value:     value,
 	})
@@ -42,7 +42,7 @@ func (log *Log) Delete(key leveldb.Key) error {
 	if log == nil {
 		return nil
 	}
-	return log.write(DbOperation{Operation: opDelete, Key: key, Value: nil})
+	return log.write(DbOperation{Operation: OpDelete, Key: key, Value: nil})
 }
 
 func (log *Log) write(dbOp DbOperation) error {

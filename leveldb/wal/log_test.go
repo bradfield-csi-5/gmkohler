@@ -21,18 +21,18 @@ func TestLog_Put(t *testing.T) {
 	}()
 
 	var operations = []DbOperation{
-		{opPut, leveldb.Key("howdely"), leveldb.Value("doodley")},
-		{opDelete, leveldb.Key("neighbor"), nil},
+		{OpPut, leveldb.Key("howdely"), leveldb.Value("doodley")},
+		{OpDelete, leveldb.Key("neighbor"), nil},
 	}
 	wal := NewLog(writeFile)
 
 	for _, op := range operations {
-		if op.Operation == opPut {
+		if op.Operation == OpPut {
 			err := wal.Put(op.Key, op.Value)
 			if err != nil {
 				t.Fatal("error writing PUT to log:", err)
 			}
-		} else if op.Operation == opDelete {
+		} else if op.Operation == OpDelete {
 			err := wal.Delete(op.Key)
 			if err != nil {
 				t.Fatal("error writing DELETE to log:", err)
