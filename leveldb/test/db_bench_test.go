@@ -54,7 +54,7 @@ func init() {
 	}
 }
 
-func BenchmarkInMemoryDb_Get(b *testing.B) {
+func BenchmarkDb_Get(b *testing.B) {
 	keys := make([]leveldb.Key, benchSize)
 	for j := range b.N {
 		_, err := rand.Read(keyBuf)
@@ -72,7 +72,7 @@ func BenchmarkInMemoryDb_Get(b *testing.B) {
 	}
 }
 
-func BenchmarkInMemoryDb_Has(b *testing.B) {
+func BenchmarkDb_Has(b *testing.B) {
 	keys := make([]leveldb.Key, benchSize)
 	for j := range b.N {
 		_, err := rand.Read(keyBuf)
@@ -91,7 +91,7 @@ func BenchmarkInMemoryDb_Has(b *testing.B) {
 	}
 }
 
-func BenchmarkInMemoryDb_Put(b *testing.B) {
+func BenchmarkDb_Put(b *testing.B) {
 	var err error
 	var entries = make([]leveldb.DataEntry, benchSize)
 	for j := range b.N {
@@ -118,7 +118,7 @@ func BenchmarkInMemoryDb_Put(b *testing.B) {
 	}
 }
 
-func BenchmarkInMemoryDb_Delete(b *testing.B) {
+func BenchmarkDb_Delete(b *testing.B) {
 	var err error
 	var keys = make([][]byte, benchSize)
 	for j := range b.N {
@@ -137,7 +137,7 @@ func BenchmarkInMemoryDb_Delete(b *testing.B) {
 	}
 }
 
-func BenchmarkInMemoryDb_RangeScan(b *testing.B) {
+func BenchmarkDb_RangeScan(b *testing.B) {
 	type keyRange struct {
 		start leveldb.Key
 		limit leveldb.Key
