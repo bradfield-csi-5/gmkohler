@@ -1,29 +1,27 @@
-package test
+package db
 
 import (
 	"bytes"
 	"leveldb"
-	"leveldb/inmem"
-	"leveldb/skiplist"
 	"testing"
 )
 
 var testImpls = []TestSetup{
 	{
 		Name:    "InMemory",
-		NewDb:   inmem.NewInMemoryDb,
-		EmptyDb: func() leveldb.DB { return inmem.NewInMemoryDb(nil) },
+		NewDb:   NewInMemoryDb,
+		EmptyDb: func() leveldb.DB { return NewInMemoryDb(nil) },
 	},
 	{
 		Name: "SkipList",
 		NewDb: func(entries []leveldb.DataEntry) leveldb.DB {
-			sl := skiplist.NewSkipListDb(nil)
+			sl := NewDb(nil)
 			for _, entry := range entries {
 				_ = sl.Put(entry.Key, entry.Value)
 			}
 			return sl
 		},
-		EmptyDb: func() leveldb.DB { return skiplist.NewSkipListDb(nil) },
+		EmptyDb: func() leveldb.DB { return NewDb(nil) },
 	},
 }
 

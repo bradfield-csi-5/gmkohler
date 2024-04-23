@@ -3,7 +3,7 @@ package test
 import (
 	"bytes"
 	"leveldb"
-	"leveldb/skiplist"
+	"leveldb/db"
 	"leveldb/wal"
 	"os"
 	"testing"
@@ -31,7 +31,7 @@ func TestRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal("error opening WAL file:", err)
 	}
-	db, err := skiplist.NewSkipListDbFromWal(walFile)
+	db, err := db.NewDbFromWal(walFile)
 	if err != nil {
 		t.Fatal("error initializing DB from WAL:", err)
 	}

@@ -3,6 +3,7 @@ package skiplist
 // translating https://www.epaperpress.com/sortsearch/download/skiplist.pdf
 
 import (
+	"errors"
 	"leveldb"
 	"math/rand/v2"
 )
@@ -22,8 +23,10 @@ type level uint8
 // Levels are capped at some appropriate level MaxLevel
 // The level of a list is maximum level currently in the list, or 1 if list is empty
 type SkipList struct {
-	header skipListNode
-	level  level
+	header     Node
+	level      level
+	numEntries uint64
+	Tombstones keySet // consider a skip-list; complexity comes in recursion on methods
 }
 
 // NewSkipList builds a SkipList with the appropriate state.
@@ -31,10 +34,11 @@ type SkipList struct {
 // All levels of all skip lists are terminated with NIL.
 // A new list is initialized so that the level of the list is equal to 1 and
 // all forward pointers of the header
-func NewSkipList() SkipList {
-	return SkipList{
-		header: newHeaderNode(),
-		level:  1, // should this be one or zero?
+func NewSkipList() *SkipList {
+	return &SkipList{
+		header:     newHeaderNode(),
+		level:      1, // should this be one or zero?
+		Tombstones: make(keySet),
 	}
 }
 
@@ -45,12 +49,16 @@ func NewSkipList() SkipList {
 // progress at level 1, we must be immediately in front of the node that
 // contains the desired element (if it is in the list).
 func (sl *SkipList) Search(searchKey leveldb.Key) (leveldb.Value, error) {
-	currentNode, err := sl.traverseUntil(searchKey, nil)
+	// consider µ-optimization:
+	//if sl.deletedKeys.contains(searchKey) {
+	//	return nil, leveldb.NewNotFoundError(searchKey)
+	//}
+	currentNode, err := sl.TraverseUntil(searchKey, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	currentNode = currentNode.ForwardNodeAtLevel(1)
+	currentNode = currentNode.Next()
 	if currentNode.CompareKey(searchKey) == 0 {
 		return currentNode.Value(), nil
 	} else {
@@ -69,19 +77,30 @@ func (sl *SkipList) Search(searchKey leveldb.Key) (leveldb.Value, error) {
 // if we have deleted the maximum element of the list and if so, decrease the
 // maximum level of the list.
 func (sl *SkipList) Insert(searchKey leveldb.Key, newValue leveldb.Value) error {
+	if sl == nil {
+		return nil
+	}
+	if len(searchKey) == 0 {
+		return errors.New("cannot insert blank key")
+	}
+	if len(newValue) == 0 {
+		return errors.New("cannot insert blank value")
+	}
 	var (
 		lastNodeTraversedPerLevel = forwardList{}
-		currentNode               skipListNode
+		currentNode               Node
 		err                       error
 	)
 
-	currentNode, err = sl.traverseUntil(searchKey, lastNodeTraversedPerLevel.setLevel)
+	currentNode, err = sl.TraverseUntil(searchKey, lastNodeTraversedPerLevel.setLevel)
 	if err != nil {
 		return err
 	}
-	currentNode = currentNode.ForwardNodeAtLevel(1)
+	currentNode = currentNode.Next()
 	if currentNode.CompareKey(searchKey) == 0 {
-		currentNode.SetValue(newValue)
+		if err = currentNode.SetValue(newValue); err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -111,16 +130,20 @@ func (sl *SkipList) Insert(searchKey leveldb.Key, newValue leveldb.Value) error 
 			return err
 		}
 	}
+
+	sl.numEntries++
+	sl.Tombstones.remove(searchKey)
+
 	return nil
 }
 
 func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 	var (
 		nodesToUpdate = forwardList{}
-		currentNode   skipListNode
+		currentNode   Node
 		err           error
 	)
-	currentNode, err = sl.traverseUntil(searchKey, nodesToUpdate.setLevel)
+	currentNode, err = sl.TraverseUntil(searchKey, nodesToUpdate.setLevel)
 	if err != nil {
 		return err
 	}
@@ -133,12 +156,15 @@ func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 			}
 			err = nodesToUpdate.getLevel(lvl).SetForwardNodeAtLevel(lvl, currentNode.ForwardNodeAtLevel(lvl))
 			if err != nil {
-				return err
+				return err // panic because incomplete operation?
 			}
 			for sl.level > 1 && sl.header.ForwardNodeAtLevel(sl.level) == NilNode {
 				sl.level--
 			}
 		}
+		sl.numEntries--
+		sl.Tombstones.add(searchKey)
+
 	} else {
 		return leveldb.NewNotFoundError(searchKey)
 	}
@@ -146,8 +172,7 @@ func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 }
 
 func (sl *SkipList) Scan(start, limit leveldb.Key) ([]leveldb.Value, error) {
-	var err error
-	nearestNode, err := sl.traverseUntil(start, nil)
+	nearestNode, err := sl.TraverseUntil(start, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -159,10 +184,18 @@ func (sl *SkipList) Scan(start, limit leveldb.Key) ([]leveldb.Value, error) {
 	return values, nil
 }
 
-// traverseUntil returns a node that is in the spot where the first-level forward entry would be the key, or would be
+func (sl *SkipList) Reset() error {
+	sl.level = 1
+	sl.numEntries = 0
+	sl.header = newHeaderNode() // forget all data
+	sl.Tombstones = make(keySet)
+	return nil
+}
+
+// TraverseUntil returns a node that is in the spot where the first-level forward entry would be the key, or would be
 // greater than the key.  In other words, it returns the node just before the desired key, whether or not that key
 // exists.
-func (sl *SkipList) traverseUntil(key leveldb.Key, listener func(level, skipListNode)) (skipListNode, error) {
+func (sl *SkipList) TraverseUntil(key leveldb.Key, listener func(level, Node)) (Node, error) {
 	var currentNode = sl.header
 	for currentLevel := sl.level; currentLevel > 0; currentLevel-- {
 		for currentNode.ForwardNodeAtLevel(currentLevel).CompareKey(key) < 0 {
@@ -183,4 +216,13 @@ func randomLevel() level {
 		lvl++
 	}
 	return lvl
+}
+
+type keySet map[string]struct{}
+
+func (ks keySet) remove(key leveldb.Key) {
+	delete(ks, string(key))
+}
+func (ks keySet) add(key leveldb.Key) {
+	ks[string(key)] = struct{}{}
 }

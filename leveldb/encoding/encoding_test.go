@@ -1,25 +1,35 @@
-package wal
+package encoding
 
 import (
 	"bytes"
-	"leveldb"
 	"testing"
 )
 
 func TestDataEntry_Encode(t *testing.T) {
 	entries := []DbOperation{
-		{Operation: OpDelete, Key: leveldb.Key("eggs")},
-		{Operation: OpPut, Key: leveldb.Key("eggs"), Value: leveldb.Value("over easy")},
+		{
+			Operation: OpDelete,
+			Entry: Entry{
+				Key: Key("eggs"),
+			},
+		},
+		{
+			Operation: OpPut,
+			Entry: Entry{
+				Key:   Key("eggs"),
+				Value: Value("over easy"),
+			},
+		},
 	}
 	for _, entry := range entries {
 		t.Run(entry.Operation.String(), func(t *testing.T) {
-			encoded, err := entry.encode()
+			encoded, err := entry.Encode()
 			if err != nil {
 				t.Fatal("error encoding DbOperation:", err)
 			}
 			payload := encoded[8:] // remove the "total length"
 			decodedEntry := new(DbOperation)
-			if err := decodedEntry.decode(payload); err != nil {
+			if err := decodedEntry.Decode(payload); err != nil {
 				t.Fatal("error decoding encoded DbOperation:", err)
 			}
 			if entry.Operation != decodedEntry.Operation {

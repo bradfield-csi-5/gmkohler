@@ -1,4 +1,4 @@
-package inmem
+package db
 
 import (
 	"bytes"
