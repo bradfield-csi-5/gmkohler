@@ -17,7 +17,7 @@ func TestBuildSSTable(t *testing.T) {
 	if err := sl.Insert(leveldb.Key("foo"), leveldb.Value("bar")); err != nil {
 		t.Fatalf("error calling DB.Put(): %v", err)
 	}
-	sstDb, err := BuildSSTable(file, sl)
+	sstDb, err := BuildSSTable(file, sl, skiplist.NewSkipList())
 	if err != nil {
 		t.Fatal("error building SSTable:", err)
 	}
@@ -28,8 +28,8 @@ func TestBuildSSTable(t *testing.T) {
 	if bytes.Compare(leveldb.Value("bar"), value) != 0 {
 		t.Errorf("unexpected returned value.  Expected %q, got %q", "bar", value)
 	}
-
 }
+
 func TestNewSSTableDB(t *testing.T) {
 	t.Skip("not yet implemented")
 	//file, err := os.CreateTemp(os.TempDir(), "sst")

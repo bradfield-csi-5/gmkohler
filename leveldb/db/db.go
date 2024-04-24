@@ -20,9 +20,10 @@ type ReadWriteSeeker interface {
 }
 
 type db struct {
-	sl       *skiplist.SkipList
-	ssTables []leveldb.ReadOnlyDB
-	wal      *wal.Log
+	memTable   *skiplist.SkipList
+	tombstones *skiplist.SkipList
+	ssTables   []leveldb.ReadOnlyDB
+	wal        *wal.Log
 }
 
 func NewDbFromWal(rw io.ReadWriter) (leveldb.DB, error) {
@@ -59,17 +60,18 @@ func NewDb(walLog io.ReadWriter) leveldb.DB {
 	}
 
 	return &db{
-		sl:  skiplist.NewSkipList(),
-		wal: log,
+		memTable:   skiplist.NewSkipList(),
+		tombstones: skiplist.NewSkipList(),
+		wal:        log,
 	}
 }
 
 func (db *db) Get(key leveldb.Key) (leveldb.Value, error) {
-	return db.sl.Search(key)
+	return db.memTable.Search(key)
 }
 
 func (db *db) Has(key leveldb.Key) (bool, error) {
-	val, err := db.sl.Search(key)
+	val, err := db.memTable.Search(key)
 	if err != nil { // FIXME: slow because of reflection
 		var notFoundError *leveldb.NotFoundError
 		if errors.As(err, &notFoundError) {
@@ -81,21 +83,37 @@ func (db *db) Has(key leveldb.Key) (bool, error) {
 }
 
 func (db *db) Put(key leveldb.Key, value leveldb.Value) error {
+	if len(value) == 0 {
+		return errors.New("cannot insert blank value")
+	}
 	if err := db.wal.Put(key, value); err != nil {
 		return err
 	}
-	return db.sl.Insert(key, value)
+	err := db.memTable.Insert(key, value)
+	if err != nil {
+		return fmt.Errorf("db.Put: error inserting into memtable: %v", err)
+	}
+	if err := db.tombstones.Delete(key); err != nil {
+		return fmt.Errorf("db.Put: error removing from memtable: %v", err)
+	}
+	return nil
 }
 
 func (db *db) Delete(key leveldb.Key) error {
 	if err := db.wal.Delete(key); err != nil {
 		return err
 	}
-	return db.sl.Delete(key)
+	if err := db.memTable.Delete(key); err != nil {
+		return fmt.Errorf("db.Delete: error removing from memtable: %v", err)
+	}
+	if err := db.tombstones.Insert(key, nil); err != nil {
+		return fmt.Errorf("db.Delete: error adding to tombstones: %v", err)
+	}
+	return nil
 }
 
 func (db *db) RangeScan(start leveldb.Key, limit leveldb.Key) (leveldb.Iterator, error) {
-	precedingNode, err := db.sl.TraverseUntil(start, nil)
+	precedingNode, err := db.memTable.TraverseUntil(start, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -103,13 +121,16 @@ func (db *db) RangeScan(start leveldb.Key, limit leveldb.Key) (leveldb.Iterator,
 }
 
 func (db *db) flushSSTable(f *os.File) (*sst.SSTableDB, error) {
-	sstDb, err := sst.BuildSSTable(f, db.sl)
+	sstDb, err := sst.BuildSSTable(f, db.memTable, db.tombstones)
 	if err != nil {
 		return nil, fmt.Errorf("db.flushSSTable: error building the SSTable: %v", err)
 	}
 
-	if err := db.sl.Reset(); err != nil {
-		return nil, fmt.Errorf("db.flushSSTable: error resetting skiplist: %v", err)
+	if err := db.memTable.Reset(); err != nil {
+		return nil, fmt.Errorf("db.flushSSTable: error resetting memTable: %v", err)
+	}
+	if err := db.tombstones.Reset(); err != nil {
+		return nil, fmt.Errorf("db.flushSSTable: error resetting tombstones: %v", err)
 	}
 
 	return sstDb, nil

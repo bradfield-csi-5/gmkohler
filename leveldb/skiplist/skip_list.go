@@ -26,7 +26,6 @@ type SkipList struct {
 	header     Node
 	level      level
 	numEntries uint64
-	Tombstones keySet // consider a skip-list; complexity comes in recursion on methods
 }
 
 // NewSkipList builds a SkipList with the appropriate state.
@@ -36,9 +35,8 @@ type SkipList struct {
 // all forward pointers of the header
 func NewSkipList() *SkipList {
 	return &SkipList{
-		header:     newHeaderNode(),
-		level:      1, // should this be one or zero?
-		Tombstones: make(keySet),
+		header: newHeaderNode(),
+		level:  1, // should this be one or zero?
 	}
 }
 
@@ -77,15 +75,10 @@ func (sl *SkipList) Search(searchKey leveldb.Key) (leveldb.Value, error) {
 // if we have deleted the maximum element of the list and if so, decrease the
 // maximum level of the list.
 func (sl *SkipList) Insert(searchKey leveldb.Key, newValue leveldb.Value) error {
-	if sl == nil {
-		return nil
-	}
 	if len(searchKey) == 0 {
 		return errors.New("cannot insert blank key")
 	}
-	if len(newValue) == 0 {
-		return errors.New("cannot insert blank value")
-	}
+
 	var (
 		lastNodeTraversedPerLevel = forwardList{}
 		currentNode               Node
@@ -132,7 +125,6 @@ func (sl *SkipList) Insert(searchKey leveldb.Key, newValue leveldb.Value) error 
 	}
 
 	sl.numEntries++
-	sl.Tombstones.remove(searchKey)
 
 	return nil
 }
@@ -163,11 +155,10 @@ func (sl *SkipList) Delete(searchKey leveldb.Key) error {
 			}
 		}
 		sl.numEntries--
-		sl.Tombstones.add(searchKey)
 
-	} else {
+	} /*else {
 		return leveldb.NewNotFoundError(searchKey)
-	}
+	}*/
 	return nil
 }
 
@@ -188,7 +179,6 @@ func (sl *SkipList) Reset() error {
 	sl.level = 1
 	sl.numEntries = 0
 	sl.header = newHeaderNode() // forget all data
-	sl.Tombstones = make(keySet)
 	return nil
 }
 
@@ -218,11 +208,11 @@ func randomLevel() level {
 	return lvl
 }
 
-type keySet map[string]struct{}
-
-func (ks keySet) remove(key leveldb.Key) {
-	delete(ks, string(key))
-}
-func (ks keySet) add(key leveldb.Key) {
-	ks[string(key)] = struct{}{}
-}
+// type keySet map[string]struct{}
+//
+// func (ks keySet) remove(key leveldb.Key) {
+// 	delete(ks, string(key))
+// }
+// func (ks keySet) add(key leveldb.Key) {
+// 	ks[string(key)] = struct{}{}
+// }

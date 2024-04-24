@@ -11,7 +11,6 @@ import (
 	"leveldb/encoding"
 	"leveldb/skiplist"
 	"os"
-	"slices"
 )
 
 const (
@@ -42,7 +41,7 @@ type SSTableDB struct {
  */
 
 // BuildSSTable builds an SSTable from the skiplists for present and deleted entries in a memtable
-func BuildSSTable(f *os.File, skipList *skiplist.SkipList) (*SSTableDB, error) {
+func BuildSSTable(f *os.File, memTable *skiplist.SkipList, tombstones *skiplist.SkipList) (*SSTableDB, error) {
 	// LevelDB’s approach is to flush the mem-table to disk once it reaches the mem-table once it reaches some threshold
 	// size, and then truncate the write-ahead log to remove any entries involving flushed data. The data is persisted
 	// in an immutable format called an “SSTable” (or “sorted string table”).
@@ -54,18 +53,13 @@ func BuildSSTable(f *os.File, skipList *skiplist.SkipList) (*SSTableDB, error) {
 	}
 
 	// sort tombstones
-	var tombstonedKeys = make([]leveldb.Key, len(skipList.Tombstones))
-	var tombstoneIdx int
-	for tombstonedKey := range skipList.Tombstones {
-		tombstonedKeys[tombstoneIdx] = leveldb.Key(tombstonedKey)
-		tombstoneIdx++
+	tombstonedNode, err := tombstones.TraverseUntil(nil, nil)
+	if err != nil {
+		return nil, err
 	}
-	tombstoneIdx = 0
-	slices.SortFunc(tombstonedKeys, func(a, b leveldb.Key) int {
-		return a.Compare(b)
-	})
+	tombstonedNode = tombstonedNode.Next()
 
-	memTableNode, err := skipList.TraverseUntil(nil, nil)
+	memTableNode, err := memTable.TraverseUntil(nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -77,37 +71,37 @@ func BuildSSTable(f *os.File, skipList *skiplist.SkipList) (*SSTableDB, error) {
 		sparseKeys             []leveldb.Key
 		keyOffsets             []offset
 	)
-	for memTableNode != skiplist.NilNode || tombstoneIdx < len(tombstonedKeys) {
-		var entryToEncode encoding.Entry
+	for memTableNode != skiplist.NilNode || tombstonedNode != skiplist.NilNode {
+		var nodeToEncode skiplist.Node
 
 		// pick which source has next smallest key, increment the winner accordingly.
-		if tombstoneIdx >= len(tombstonedKeys) {
-			entryToEncode = encoding.Entry{
-				Key:   encoding.Key(memTableNode.Key()),
-				Value: encoding.Value(memTableNode.Value()),
-			}
+		if tombstonedNode == skiplist.NilNode {
+			nodeToEncode = memTableNode
 			memTableNode = memTableNode.Next()
+		} else if memTableNode == skiplist.NilNode {
+			nodeToEncode = tombstonedNode
+			tombstonedNode = tombstonedNode.Next()
 		} else {
-			var tombstonedKey = tombstonedKeys[tombstoneIdx]
-			var comparison = bytes.Compare(tombstonedKey, memTableNode.Key())
+			var comparison = bytes.Compare(tombstonedNode.Key(), memTableNode.Key())
 			switch {
 			case comparison < 0:
-				entryToEncode = encoding.Entry{
-					Key:   encoding.Key(memTableNode.Key()),
-					Value: encoding.Value(memTableNode.Value()),
-				}
+				nodeToEncode = memTableNode
 				memTableNode = memTableNode.Next()
 			case comparison > 0:
-				entryToEncode = encoding.Entry{Key: encoding.Key(tombstonedKey)}
-				tombstoneIdx++
+				nodeToEncode = tombstonedNode
+				tombstonedNode = tombstonedNode.Next()
 			default:
 				return nil, fmt.Errorf(
 					"found key %q in both the mem-table and deleted keyset",
-					tombstonedKey,
+					tombstonedNode.Key(),
 				)
 			}
 		}
 
+		entryToEncode := encoding.Entry{
+			Key:   encoding.Key(nodeToEncode.Key()),
+			Value: encoding.Value(nodeToEncode.Value()),
+		}
 		encodedEntry, err := entryToEncode.Encode()
 		if err != nil {
 			return nil, err

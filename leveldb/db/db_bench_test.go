@@ -3,6 +3,7 @@ package db
 import (
 	"bytes"
 	"crypto/rand"
+	"fmt"
 	"leveldb"
 	"testing"
 )
@@ -43,7 +44,7 @@ func init() {
 	skipListDb := NewDb(nil)
 	for _, datum := range data {
 		if err := skipListDb.Put(datum.Key, datum.Value); err != nil {
-			panic("failed setup")
+			panic(fmt.Sprintf("failure in setup: %v", err))
 		}
 	}
 	impls = []testImpl{
