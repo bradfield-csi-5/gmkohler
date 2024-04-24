@@ -13,6 +13,10 @@ import (
 	"os"
 )
 
+var (
+	notFoundError *leveldb.NotFoundError
+)
+
 type ReadWriteSeeker interface {
 	io.Reader
 	io.Writer
@@ -73,7 +77,6 @@ func (db *db) Get(key leveldb.Key) (leveldb.Value, error) {
 func (db *db) Has(key leveldb.Key) (bool, error) {
 	val, err := db.memTable.Search(key)
 	if err != nil { // FIXME: slow because of reflection
-		var notFoundError *leveldb.NotFoundError
 		if errors.As(err, &notFoundError) {
 			return false, nil
 		}

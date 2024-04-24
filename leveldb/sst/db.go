@@ -85,11 +85,11 @@ func BuildSSTable(f *os.File, memTable *skiplist.SkipList, tombstones *skiplist.
 			var comparison = bytes.Compare(tombstonedNode.Key(), memTableNode.Key())
 			switch {
 			case comparison < 0:
-				nodeToEncode = memTableNode
-				memTableNode = memTableNode.Next()
-			case comparison > 0:
 				nodeToEncode = tombstonedNode
 				tombstonedNode = tombstonedNode.Next()
+			case comparison > 0:
+				nodeToEncode = memTableNode
+				memTableNode = memTableNode.Next()
 			default:
 				return nil, fmt.Errorf(
 					"found key %q in both the mem-table and deleted keyset",
@@ -209,6 +209,7 @@ func NewSSTableDBFromFile(readSeeker io.ReadSeeker) (*SSTableDB, error) {
 func (db *SSTableDB) Get(searchKey leveldb.Key) (leveldb.Value, error) {
 	var (
 		keyLen     uint64
+		valLen     uint64
 		value      leveldb.Value
 		startIndex offset
 		err        error
@@ -232,15 +233,17 @@ func (db *SSTableDB) Get(searchKey leveldb.Key) (leveldb.Value, error) {
 			return nil, err
 		}
 		var comparison = bytes.Compare(searchKey, key)
-		if comparison > 0 {
+		if comparison < 0 {
 			return nil, leveldb.NewNotFoundError(searchKey)
 		}
-		valLen, err := encoding.ReadUint64(db.readSeeker)
+		valLen, err = encoding.ReadUint64(db.readSeeker)
 		if err != nil {
 			return nil, err
 		}
-		if valLen == 0 { // FIXME: consider multiple tables
-			break
+		if valLen == 0 {
+			// valLen == 0 implies the key has been tombstoned
+			// FIXME: consider multiple tables
+			return nil, leveldb.NewNotFoundError(searchKey)
 		}
 		if comparison == 0 {
 			value, err = encoding.ReadByteSlice(db.readSeeker, valLen)
