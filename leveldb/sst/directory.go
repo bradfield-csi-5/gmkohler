@@ -26,12 +26,24 @@ func NewBlankDirectory() *Directory {
 func (dir *Directory) Decode(i []byte) error {
 	var (
 		reader = bytes.NewReader(i)
-		keyLen uint64
 	)
-	if err := binary.Read(reader, encoding.ByteOrder, keyLen); err != nil {
-		return err
+	for {
+		keyLen, err := encoding.ReadUint64(reader)
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			return err
+		}
+		key, err := encoding.ReadByteSlice(reader, keyLen)
+		if err != nil {
+			return err
+		}
+		keyOffset, err := encoding.ReadUint64(reader)
+		dir.sparseKeys = append(dir.sparseKeys, key)
+		dir.offsets = append(dir.offsets, offset(keyOffset))
 	}
-	panic("uh oh")
+	return nil
 }
 
 func (dir *Directory) Encode() ([]byte, error) {

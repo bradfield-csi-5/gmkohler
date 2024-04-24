@@ -24,7 +24,7 @@ func TestBuildSSTable(t *testing.T) {
 		t.Fatalf("error inserting into tombstone skiplist: %v", err)
 	}
 
-	sstDb, err := BuildSSTable(file, memTable, tombstones)
+	sstDb, err := BuildSSTable(file, memTable, tombstones, withSparseIndexThreshold(0x4))
 	if err != nil {
 		t.Fatal("error building SSTable:", err)
 	}

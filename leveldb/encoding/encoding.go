@@ -156,15 +156,6 @@ func ReadUint64(r io.Reader) (uint64, error) {
 	return ByteOrder.Uint64(buf), nil
 }
 
-func WriteInt64(w io.Writer, v int64) error {
-	var buf = make([]byte, uint64Size)
-	binary.PutVarint(buf, v)
-	if err := binary.Write(w, ByteOrder, buf); err != nil {
-		return fmt.Errorf("encoding.WriteInt64: %v", err)
-	}
-
-	return nil
-}
 func WriteUint64(w io.Writer, v uint64) error {
 	var buf = make([]byte, uint64Size)
 	ByteOrder.PutUint64(buf, v)

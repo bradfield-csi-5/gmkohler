@@ -3,7 +3,6 @@ package sst
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -24,6 +23,21 @@ type SSTableDB struct {
 	dir             *Directory
 }
 
+func newSSTableConfig() *ssTableConfig {
+	return &ssTableConfig{sparseIndexThreshold: sparseIndexThreshold}
+}
+
+type ssTableConfig struct {
+	sparseIndexThreshold int
+}
+type ssTableOption func(*ssTableConfig)
+
+func withSparseIndexThreshold(threshold int) ssTableOption {
+	return func(config *ssTableConfig) {
+		config.sparseIndexThreshold = threshold
+	}
+}
+
 /**
  * format:
  * | 8 bytes (int64)    | 8 bytes 		   | arbitrarily long | arbitrarily long		  |
@@ -41,7 +55,16 @@ type SSTableDB struct {
  */
 
 // BuildSSTable builds an SSTable from the skiplists for present and deleted entries in a memtable
-func BuildSSTable(f *os.File, memTable *skiplist.SkipList, tombstones *skiplist.SkipList) (*SSTableDB, error) {
+func BuildSSTable(
+	f *os.File,
+	memTable *skiplist.SkipList,
+	tombstones *skiplist.SkipList,
+	configOptions ...ssTableOption,
+) (*SSTableDB, error) {
+	var ssTableConfig = newSSTableConfig()
+	for _, option := range configOptions {
+		option(ssTableConfig)
+	}
 	// LevelDB’s approach is to flush the mem-table to disk once it reaches the mem-table once it reaches some threshold
 	// size, and then truncate the write-ahead log to remove any entries involving flushed data. The data is persisted
 	// in an immutable format called an “SSTable” (or “sorted string table”).
@@ -114,13 +137,13 @@ func BuildSSTable(f *os.File, memTable *skiplist.SkipList, tombstones *skiplist.
 			return nil, errors.New("failed to write all bytes")
 		}
 		cumulativeBytesWritten += bytesWritten
-		if cumulativeBytesWritten > sparseIndexThreshold {
+		if cumulativeBytesWritten > ssTableConfig.sparseIndexThreshold {
 			var currentOffset, err = f.Seek(0, io.SeekCurrent)
 			if err != nil {
 				return nil, err
 			}
 			sparseKeys = append(sparseKeys, leveldb.Key(entryToEncode.Key))
-			keyOffsets = append(keyOffsets, offset(currentOffset)) // FIXME: point directly to value
+			keyOffsets = append(keyOffsets, offset(currentOffset-int64(bytesWritten)))
 			cumulativeBytesWritten = 0
 		}
 
@@ -148,10 +171,10 @@ func BuildSSTable(f *os.File, memTable *skiplist.SkipList, tombstones *skiplist.
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return nil, err
 	}
-	if err := encoding.WriteInt64(f, directoryOffset); err != nil {
+	if err := encoding.WriteUint64(f, uint64(directoryOffset)); err != nil {
 		return nil, err
 	}
-	if err := encoding.WriteInt64(f, int64(len(encodedDirectory))); err != nil {
+	if err := encoding.WriteUint64(f, uint64(len(encodedDirectory))); err != nil {
 		return nil, err
 	}
 
@@ -167,17 +190,17 @@ func NewSSTableDBFromFile(readSeeker io.ReadSeeker) (*SSTableDB, error) {
 		return nil, fmt.Errorf("NewSSTableDBFromFile: error seeking to start of file: %v", err)
 	}
 	// START: read directory metadata
-	endOfDataOffset, err := binary.ReadVarint(bufReader)
+	endOfDataOffset, err := encoding.ReadUint64(bufReader)
 	if err != nil {
 		return nil, fmt.Errorf("NewSSTableDBFromFile: error reading data offset: %v", err)
 	}
-	dirLen, err := binary.ReadVarint(bufReader)
+	dirLen, err := encoding.ReadUint64(bufReader)
 	if err != nil {
 		return nil, fmt.Errorf("NewSSTableDBFromFile: error reading directory length: %v", err)
 	}
 	// END: read directory metadata
 	// START: read directory
-	if _, err := readSeeker.Seek(endOfDataOffset, io.SeekStart); err != nil {
+	if _, err := readSeeker.Seek(int64(endOfDataOffset), io.SeekStart); err != nil {
 		return nil, err
 	}
 	var directory = NewBlankDirectory()
@@ -187,7 +210,7 @@ func NewSSTableDBFromFile(readSeeker io.ReadSeeker) (*SSTableDB, error) {
 		if err != nil {
 			return nil, fmt.Errorf("sst.NewSSTableDBFromFile: error reading directory contents: %v", err)
 		}
-		if int64(bytesRead) != dirLen {
+		if uint64(bytesRead) != dirLen {
 			return nil, fmt.Errorf("sst.NewSSTableDBFromFile: failure to read entire directory.  expected %d bytes, read %d", dirLen, bytesRead)
 		}
 		if err := directory.Decode(directoryBuf); err != nil {
@@ -201,7 +224,7 @@ func NewSSTableDBFromFile(readSeeker io.ReadSeeker) (*SSTableDB, error) {
 	}
 	return &SSTableDB{
 		readSeeker:      readSeeker,
-		endOfDataOffset: endOfDataOffset,
+		endOfDataOffset: int64(endOfDataOffset),
 		dir:             directory,
 	}, nil
 }
