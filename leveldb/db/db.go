@@ -52,10 +52,10 @@ func NewDbFromWal(rw io.ReadWriter) (leveldb.DB, error) {
 	return db, nil
 }
 
-func NewDb(readWriter io.ReadWriter) leveldb.DB {
+func NewDb(walLog io.ReadWriter) leveldb.DB {
 	var log *wal.Log
-	if readWriter != nil { // hacky, think of nicer way
-		log = wal.NewLog(readWriter)
+	if walLog != nil { // hacky, think of nicer way
+		log = wal.NewLog(walLog)
 	}
 
 	return &db{
@@ -103,7 +103,16 @@ func (db *db) RangeScan(start leveldb.Key, limit leveldb.Key) (leveldb.Iterator,
 }
 
 func (db *db) flushSSTable(f *os.File) (*sst.SSTableDB, error) {
-	return sst.BuildSSTable(f, db.sl)
+	sstDb, err := sst.BuildSSTable(f, db.sl)
+	if err != nil {
+		return nil, fmt.Errorf("db.flushSSTable: error building the SSTable: %v", err)
+	}
+
+	if err := db.sl.Reset(); err != nil {
+		return nil, fmt.Errorf("db.flushSSTable: error resetting skiplist: %v", err)
+	}
+
+	return sstDb, nil
 }
 
 // consider converting to memory instead of this

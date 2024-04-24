@@ -40,15 +40,15 @@ func init() {
 			Value: valBuf,
 		}
 	}
-	slDb := NewDb(nil)
+	skipListDb := NewDb(nil)
 	for _, datum := range data {
-		if err := slDb.Put(datum.Key, datum.Value); err != nil {
+		if err := skipListDb.Put(datum.Key, datum.Value); err != nil {
 			panic("failed setup")
 		}
 	}
 	impls = []testImpl{
-		{name: "InMemory", db: NewInMemoryDb(data)},
-		{name: "SkipList", db: slDb},
+		{name: "SliceImpl", db: NewInMemoryDb(data)},
+		{name: "SkipListImpl", db: skipListDb},
 	}
 }
 

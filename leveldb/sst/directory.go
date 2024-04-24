@@ -16,7 +16,14 @@ type Directory struct {
 	offsets    []offset
 }
 
-func (dir Directory) Decode(i []byte) error {
+func NewBlankDirectory() *Directory {
+	return &Directory{
+		sparseKeys: make([]leveldb.Key, 0),
+		offsets:    make([]offset, 0),
+	}
+}
+
+func (dir *Directory) Decode(i []byte) error {
 	var (
 		reader = bytes.NewReader(i)
 		keyLen uint64
@@ -27,7 +34,7 @@ func (dir Directory) Decode(i []byte) error {
 	panic("uh oh")
 }
 
-func (dir Directory) Encode() ([]byte, error) {
+func (dir *Directory) Encode() ([]byte, error) {
 	if len(dir.sparseKeys) != len(dir.offsets) {
 		return nil, errors.New("directory does not have equal number of keys and offsets")
 	}
@@ -57,12 +64,12 @@ func (dir Directory) Encode() ([]byte, error) {
 }
 
 func NewDirectory(sparseKeys []leveldb.Key, offsets []offset) (*Directory, error) {
-	if len(sparseKeys) != len(offsets) {
-		return nil, errors.New("sparse keys and corresponding offsets must be of equal length")
-	}
-	if len(sparseKeys) == 0 {
-		return nil, errors.New("sparseKeys and offsets cannot be empty")
-	}
+	//if len(sparseKeys) != len(offsets) {
+	//	return nil, errors.New("sparse keys and corresponding offsets must be of equal length")
+	//}
+	//if len(sparseKeys) == 0 {
+	//	return nil, errors.New("sparseKeys and offsets cannot be empty")
+	//}
 
 	return &Directory{
 		sparseKeys: sparseKeys,
@@ -70,7 +77,10 @@ func NewDirectory(sparseKeys []leveldb.Key, offsets []offset) (*Directory, error
 	}, nil
 }
 
-func (dir Directory) offsetFor(searchKey leveldb.Key) (offset, error) {
+func (dir *Directory) offsetFor(searchKey leveldb.Key) (offset, error) {
+	if len(dir.sparseKeys) == 0 {
+		return dataOffset, nil
+	}
 	offsetIndex, _ := slices.BinarySearchFunc(dir.sparseKeys, searchKey, func(key, key2 leveldb.Key) int {
 		return bytes.Compare(key, key2)
 	})

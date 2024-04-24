@@ -22,7 +22,7 @@ const (
 type SSTableDB struct {
 	readSeeker      io.ReadSeeker
 	endOfDataOffset int64
-	dir             Directory
+	dir             *Directory
 }
 
 /**
@@ -69,6 +69,7 @@ func BuildSSTable(f *os.File, skipList *skiplist.SkipList) (*SSTableDB, error) {
 	if err != nil {
 		return nil, err
 	}
+	memTableNode = memTableNode.Next()
 
 	// merging loop
 	var (
@@ -76,7 +77,7 @@ func BuildSSTable(f *os.File, skipList *skiplist.SkipList) (*SSTableDB, error) {
 		sparseKeys             []leveldb.Key
 		keyOffsets             []offset
 	)
-	for memTableNode != skiplist.NilNode && tombstoneIdx < len(tombstonedKeys) {
+	for memTableNode != skiplist.NilNode || tombstoneIdx < len(tombstonedKeys) {
 		var entryToEncode encoding.Entry
 
 		// pick which source has next smallest key, increment the winner accordingly.
@@ -160,10 +161,6 @@ func BuildSSTable(f *os.File, skipList *skiplist.SkipList) (*SSTableDB, error) {
 		return nil, err
 	}
 
-	if err := skipList.Reset(); err != nil {
-		return nil, err
-	}
-
 	return NewSSTableDBFromFile(f)
 }
 
@@ -172,42 +169,58 @@ func NewSSTableDBFromFile(readSeeker io.ReadSeeker) (*SSTableDB, error) {
 		bufReader = bufio.NewReader(readSeeker)
 		err       error
 	)
+	if _, err := readSeeker.Seek(0, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("NewSSTableDBFromFile: error seeking to start of file: %v", err)
+	}
 	// START: read directory metadata
 	endOfDataOffset, err := binary.ReadVarint(bufReader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewSSTableDBFromFile: error reading data offset: %v", err)
 	}
 	dirLen, err := binary.ReadVarint(bufReader)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("NewSSTableDBFromFile: error reading directory length: %v", err)
 	}
 	// END: read directory metadata
 	// START: read directory
 	if _, err := readSeeker.Seek(endOfDataOffset, io.SeekStart); err != nil {
 		return nil, err
 	}
-	directoryBuf := make([]byte, dirLen)
-	bytesRead, err := readSeeker.Read(directoryBuf)
-	if err != nil {
-		return nil, fmt.Errorf("sst.NewSSTableDBFromFile: %v", err)
-	}
-	if int64(bytesRead) != dirLen {
-		return nil, fmt.Errorf("sst.NewSSTableDBFromFile: failure to read entire directory.  expected %d bytes, read %d", dirLen, bytesRead)
-
+	var directory = NewBlankDirectory()
+	if dirLen > 0 {
+		directoryBuf := make([]byte, dirLen)
+		bytesRead, err := readSeeker.Read(directoryBuf)
+		if err != nil {
+			return nil, fmt.Errorf("sst.NewSSTableDBFromFile: error reading directory contents: %v", err)
+		}
+		if int64(bytesRead) != dirLen {
+			return nil, fmt.Errorf("sst.NewSSTableDBFromFile: failure to read entire directory.  expected %d bytes, read %d", dirLen, bytesRead)
+		}
+		if err := directory.Decode(directoryBuf); err != nil {
+			return nil, fmt.Errorf("NewSSTableDBFromFile: error decoding directory contents: %v", err)
+		}
 	}
 	// END: read directory
 	// reset to start of data
-	if _, err = readSeeker.Seek(16, io.SeekStart); err != nil { // 8 == 2 * size(int64)
-		return nil, err
+	if _, err = readSeeker.Seek(dataOffset, io.SeekStart); err != nil { // 8 == 2 * size(int64)
+		return nil, fmt.Errorf("NewSSTableDBFromFile: error seeking to start of data: %v", err)
 	}
 	return &SSTableDB{
 		readSeeker:      readSeeker,
 		endOfDataOffset: endOfDataOffset,
+		dir:             directory,
 	}, nil
 }
 
 func (db *SSTableDB) Get(searchKey leveldb.Key) (leveldb.Value, error) {
-	startIndex, err := db.dir.offsetFor(searchKey)
+	var (
+		keyLen     uint64
+		value      leveldb.Value
+		startIndex offset
+		err        error
+	)
+
+	startIndex, err = db.dir.offsetFor(searchKey)
 	if err != nil {
 		return nil, err
 	}
@@ -215,15 +228,7 @@ func (db *SSTableDB) Get(searchKey leveldb.Key) (leveldb.Value, error) {
 		return nil, err
 	}
 
-	var (
-		keyLen        uint64
-		currentOffset int64
-	)
-	currentOffset, err = db.readSeeker.Seek(0, io.SeekCurrent)
-	if err != nil {
-		return nil, err
-	}
-	for !db.isAtEndOfData(currentOffset) {
+	for !db.isAtEndOfData() {
 		keyLen, err = encoding.ReadUint64(db.readSeeker)
 		if err != nil {
 			return nil, err
@@ -240,27 +245,34 @@ func (db *SSTableDB) Get(searchKey leveldb.Key) (leveldb.Value, error) {
 		if err != nil {
 			return nil, err
 		}
+		if valLen == 0 { // FIXME: consider multiple tables
+			break
+		}
 		if comparison == 0 {
-			value, err := encoding.ReadByteSlice(db.readSeeker, valLen)
+			value, err = encoding.ReadByteSlice(db.readSeeker, valLen)
 			if err != nil {
 				return nil, err
 			}
-			return value, nil
+			break
 		} else {
 			// skip past value dangerous to cast but shrug
-			currentOffset, err = db.readSeeker.Seek(int64(valLen), io.SeekCurrent)
+			_, err = db.readSeeker.Seek(int64(valLen), io.SeekCurrent)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
-	panic("not done")
+
+	return value, nil
 }
 
 // isAtEndOfData is a substitute for checking for EOF errors because our file has directory data
 // at the end of it.  The data offset is inferred from the encoding of where the directory starts (that encoding lives
 // at the beginning of the file)
-func (db *SSTableDB) isAtEndOfData(offset int64) bool { return db.endOfDataOffset >= offset }
+func (db *SSTableDB) isAtEndOfData() bool {
+	currOffset, _ := db.readSeeker.Seek(0, io.SeekCurrent) // no worry about error in this use-case
+	return currOffset >= db.endOfDataOffset
+}
 
 func (db *SSTableDB) Has(key leveldb.Key) (bool, error) {
 	//TODO implement me
