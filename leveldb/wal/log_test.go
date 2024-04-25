@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"leveldb"
+	"leveldb/encoding"
 	"os"
 	"testing"
 )
@@ -20,20 +21,26 @@ func TestLog_Put(t *testing.T) {
 		}
 	}()
 
-	var operations = []DbOperation{
-		{OpPut, leveldb.Key("howdely"), leveldb.Value("doodley")},
-		{OpDelete, leveldb.Key("neighbor"), nil},
+	var operations = []encoding.DbOperation{
+		{
+			Operation: encoding.OpPut,
+			Entry:     encoding.Entry{Key: encoding.Key("howdely"), Value: encoding.Value("doodley")},
+		},
+		{
+			Operation: encoding.OpDelete,
+			Entry:     encoding.Entry{Key: encoding.Key("neighbor")},
+		},
 	}
 	wal := NewLog(writeFile)
 
 	for _, op := range operations {
-		if op.Operation == OpPut {
-			err := wal.Put(op.Key, op.Value)
+		if op.Operation == encoding.OpPut {
+			err := wal.Put(leveldb.Key(op.Key), leveldb.Value(op.Value))
 			if err != nil {
 				t.Fatal("error writing PUT to log:", err)
 			}
-		} else if op.Operation == OpDelete {
-			err := wal.Delete(op.Key)
+		} else if op.Operation == encoding.OpDelete {
+			err := wal.Delete(leveldb.Key(op.Key))
 			if err != nil {
 				t.Fatal("error writing DELETE to log:", err)
 			}
@@ -44,7 +51,7 @@ func TestLog_Put(t *testing.T) {
 	if err != nil {
 		t.Fatal("error opening WAL file for reading:", err)
 	}
-	decodedOps, err := DecodeLogFile(bufio.NewReader(readFile))
+	decodedOps, err := encoding.DecodeLogFile(bufio.NewReader(readFile))
 	if err != nil {
 		t.Fatal("error decoding WAL file:", err)
 	}

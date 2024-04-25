@@ -1,11 +1,10 @@
-package test
+package db
 
 import (
 	"bytes"
 	"crypto/rand"
+	"fmt"
 	"leveldb"
-	"leveldb/inmem"
-	"leveldb/skiplist"
 	"testing"
 )
 
@@ -42,15 +41,15 @@ func init() {
 			Value: valBuf,
 		}
 	}
-	slDb := skiplist.NewSkipListDb(nil)
+	skipListDb := NewDb(nil)
 	for _, datum := range data {
-		if err := slDb.Put(datum.Key, datum.Value); err != nil {
-			panic("failed setup")
+		if err := skipListDb.Put(datum.Key, datum.Value); err != nil {
+			panic(fmt.Sprintf("failure in setup: %v", err))
 		}
 	}
 	impls = []testImpl{
-		{name: "InMemory", db: inmem.NewInMemoryDb(data)},
-		{name: "SkipList", db: slDb},
+		{name: "SliceImpl", db: NewInMemoryDb(data)},
+		{name: "SkipListImpl", db: skipListDb},
 	}
 }
 

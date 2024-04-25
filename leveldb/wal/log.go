@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"leveldb"
+	"leveldb/encoding"
 )
 
 type Log struct {
@@ -31,10 +32,12 @@ func (log *Log) Put(key leveldb.Key, value leveldb.Value) error {
 	if log == nil {
 		return nil
 	}
-	return log.write(DbOperation{
-		Operation: OpPut,
-		Key:       key,
-		Value:     value,
+	return log.write(encoding.DbOperation{
+		Operation: encoding.OpPut,
+		Entry: encoding.Entry{
+			Key:   encoding.Key(key),
+			Value: encoding.Value(value),
+		},
 	})
 }
 
@@ -42,11 +45,16 @@ func (log *Log) Delete(key leveldb.Key) error {
 	if log == nil {
 		return nil
 	}
-	return log.write(DbOperation{Operation: OpDelete, Key: key, Value: nil})
+	return log.write(encoding.DbOperation{
+		Operation: encoding.OpDelete,
+		Entry: encoding.Entry{
+			Key: encoding.Key(key),
+		},
+	})
 }
 
-func (log *Log) write(dbOp DbOperation) error {
-	encoded, err := dbOp.encode()
+func (log *Log) write(dbOp encoding.DbOperation) error {
+	encoded, err := dbOp.Encode()
 	if err != nil {
 		return err
 	}
