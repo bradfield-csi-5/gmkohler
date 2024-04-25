@@ -3,6 +3,7 @@ package leveldb
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"leveldb/encoding"
@@ -42,16 +43,10 @@ type DataEntry struct {
 	Value Value
 }
 
-type NotFoundError struct {
-	key Key
-}
+var ErrKeyNotFound = errors.New("key not found")
 
 func NewNotFoundError(key Key) error {
-	return &NotFoundError{key: key}
-}
-
-func (err *NotFoundError) Error() string {
-	return fmt.Sprintf("entry not found for key %q", err.key)
+	return fmt.Errorf("%q: %w", key, ErrKeyNotFound)
 }
 
 type ReadOnlyDB interface {

@@ -101,9 +101,8 @@ func TestSSTable(t *testing.T) {
 			if err == nil {
 				t.Error("expected error calling sstDb.Get() for non-existent value, did not get one")
 			}
-			var notFoundError *leveldb.NotFoundError
-			if !errors.As(err, &notFoundError) {
-				t.Errorf("expected a NotFoundError, got %T: %v", err, err)
+			if !errors.Is(err, leveldb.ErrKeyNotFound) {
+				t.Errorf("expected a ErrKeyNotFound, got %T: %v", err, err)
 			}
 		})
 		t.Run("Tombstoned", func(t *testing.T) {
@@ -111,9 +110,8 @@ func TestSSTable(t *testing.T) {
 			if err == nil {
 				t.Error("expected error calling sstDb.Get() for tombstoned value, did not get one")
 			}
-			var notFoundError *leveldb.NotFoundError
-			if !errors.As(err, &notFoundError) {
-				t.Errorf("expected a NotFoundError, got %T: %v", err, err)
+			if !errors.Is(err, leveldb.ErrKeyNotFound) {
+				t.Errorf("expected a ErrKeyNotFound, got %T: %v", err, err)
 			}
 		})
 	})
