@@ -13,10 +13,6 @@ import (
 	"os"
 )
 
-var (
-	notFoundError *leveldb.NotFoundError
-)
-
 type db struct {
 	memTable   *skiplist.SkipList
 	tombstones *skiplist.SkipList
@@ -71,7 +67,7 @@ func (db *db) Get(key leveldb.Key) (leveldb.Value, error) {
 func (db *db) Has(key leveldb.Key) (bool, error) {
 	val, err := db.memTable.Search(key)
 	if err != nil { // FIXME: slow because of reflection
-		if errors.As(err, &notFoundError) {
+		if errors.Is(err, leveldb.ErrKeyNotFound) {
 			return false, nil
 		}
 		return false, err

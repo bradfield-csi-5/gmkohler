@@ -17,32 +17,28 @@ const (
 	dataOffset           = 0x10
 )
 
-var (
-	notFoundError *leveldb.NotFoundError
-)
-
-/**
- * format:
- * | 8 bytes (int64)    | 8 bytes 		   | arbitrarily long | arbitrarily long		  |
- * | [directory offset] | directory size   |     [data]       | [directory entries]      |
- *
- * data:
- * | 8 bytes   |  arbitrary |  8 bytes    |  [0, arbitrary) |
- * | [key len] | [key]		| [value len] | (value) 	   |
- *
- * , where [value len] is 0 if key is tombstoned, and value omitted in this case
- *
- * directory entry:
- * | 8 bytes   |  arbitrary |  8 bytes      |
- * | [key len] | [key]		| [file offset] |
- */
-// BuildSSTable builds an SSTable from the skiplists for present and deleted entries in a memtable
+// BuildSSTable builds an SSTable from the SkipLists for present and tombstoned entries
 func BuildSSTable(
 	f *os.File,
 	memTable *skiplist.SkipList,
 	tombstones *skiplist.SkipList,
 	configOptions ...ssTableOption,
 ) (*SSTableDB, error) {
+	/**
+	 * format:
+	 * | 8 bytes (int64)    | 8 bytes 		   | arbitrarily long | arbitrarily long		  |
+	 * | [directory offset] | directory size   |     [data]       | [directory entries]      |
+	 *
+	 * data:
+	 * | 8 bytes   |  arbitrary |  8 bytes    |  [0, arbitrary) |
+	 * | [key len] | [key]		| [value len] | (value) 	   |
+	 *
+	 * , where [value len] is 0 if key is tombstoned, and value omitted in this case
+	 *
+	 * directory entry:
+	 * | 8 bytes   |  arbitrary |  8 bytes      |
+	 * | [key len] | [key]		| [file offset] |
+	 */
 	var ssTableConfig = newSSTableConfig()
 	for _, option := range configOptions {
 		option(ssTableConfig)
@@ -259,7 +255,7 @@ func (db *SSTableDB) Get(searchKey leveldb.Key) (leveldb.Value, error) {
 func (db *SSTableDB) Has(key leveldb.Key) (bool, error) {
 	_, err := db.Get(key)
 	if err != nil {
-		if errors.As(err, &notFoundError) {
+		if errors.Is(err, leveldb.ErrKeyNotFound) {
 			return false, nil
 		}
 		return false, err
