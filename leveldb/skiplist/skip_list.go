@@ -207,12 +207,3 @@ func randomLevel() level {
 	}
 	return lvl
 }
-
-// type keySet map[string]struct{}
-//
-// func (ks keySet) remove(key leveldb.Key) {
-// 	delete(ks, string(key))
-// }
-// func (ks keySet) add(key leveldb.Key) {
-// 	ks[string(key)] = struct{}{}
-// }

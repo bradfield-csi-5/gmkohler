@@ -17,26 +17,9 @@ const (
 	dataOffset           = 0x10
 )
 
-type SSTableDB struct {
-	readSeeker      io.ReadSeeker
-	endOfDataOffset int64
-	dir             *Directory
-}
-
-func newSSTableConfig() *ssTableConfig {
-	return &ssTableConfig{sparseIndexThreshold: sparseIndexThreshold}
-}
-
-type ssTableConfig struct {
-	sparseIndexThreshold int
-}
-type ssTableOption func(*ssTableConfig)
-
-func withSparseIndexThreshold(threshold int) ssTableOption {
-	return func(config *ssTableConfig) {
-		config.sparseIndexThreshold = threshold
-	}
-}
+var (
+	notFoundError *leveldb.NotFoundError
+)
 
 /**
  * format:
@@ -53,7 +36,6 @@ func withSparseIndexThreshold(threshold int) ssTableOption {
  * | 8 bytes   |  arbitrary |  8 bytes      |
  * | [key len] | [key]		| [file offset] |
  */
-
 // BuildSSTable builds an SSTable from the skiplists for present and deleted entries in a memtable
 func BuildSSTable(
 	f *os.File,
@@ -70,7 +52,6 @@ func BuildSSTable(
 	// in an immutable format called an “SSTable” (or “sorted string table”).
 	// do writing here
 
-	/* TODO: build and write directory and its metadata */
 	if _, err := f.Seek(dataOffset, io.SeekStart); err != nil { // start writing from start
 		return nil, err
 	}
@@ -115,7 +96,7 @@ func BuildSSTable(
 				memTableNode = memTableNode.Next()
 			default:
 				return nil, fmt.Errorf(
-					"found key %q in both the mem-table and deleted keyset",
+					"found key %q in both the mem-table and tombstones",
 					tombstonedNode.Key(),
 				)
 			}
@@ -229,77 +210,221 @@ func NewSSTableDBFromFile(readSeeker io.ReadSeeker) (*SSTableDB, error) {
 	}, nil
 }
 
+type SSTableDB struct {
+	readSeeker      io.ReadSeeker
+	endOfDataOffset int64
+	dir             *Directory
+}
+
 func (db *SSTableDB) Get(searchKey leveldb.Key) (leveldb.Value, error) {
 	var (
-		keyLen     uint64
-		valLen     uint64
-		value      leveldb.Value
-		startIndex offset
-		err        error
+		entry = new(encoding.Entry)
+		err   error
 	)
 
-	startIndex, err = db.dir.offsetFor(searchKey)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := db.readSeeker.Seek(int64(startIndex), io.SeekStart); err != nil {
+	if err = db.scanTowards(searchKey); err != nil {
 		return nil, err
 	}
 
 	for !db.isAtEndOfData() {
-		keyLen, err = encoding.ReadUint64(db.readSeeker)
+		bytesRead, err := readEntry(db.readSeeker, entry)
 		if err != nil {
+			_, _ = db.readSeeker.Seek(-bytesRead, io.SeekCurrent)
 			return nil, err
 		}
-		var key = make(leveldb.Key, keyLen)
-		if _, err = io.ReadFull(db.readSeeker, key); err != nil {
-			return nil, err
-		}
-		var comparison = bytes.Compare(searchKey, key)
-		if comparison < 0 {
+
+		var comparison = bytes.Compare(entry.Key, searchKey)
+		if comparison > 0 {
 			return nil, leveldb.NewNotFoundError(searchKey)
-		}
-		valLen, err = encoding.ReadUint64(db.readSeeker)
-		if err != nil {
-			return nil, err
-		}
-		if valLen == 0 {
-			// valLen == 0 implies the key has been tombstoned
-			// FIXME: consider multiple tables
-			return nil, leveldb.NewNotFoundError(searchKey)
-		}
-		if comparison == 0 {
-			value, err = encoding.ReadByteSlice(db.readSeeker, valLen)
-			if err != nil {
-				return nil, err
+		} else if comparison == 0 {
+			if len(entry.Value) == 0 {
+				// valLen == 0 implies the key has been tombstoned
+				// FIXME: consider multiple tables
+				return nil, leveldb.NewNotFoundError(searchKey)
 			}
+
 			break
 		} else {
-			// skip past value dangerous to cast but shrug
-			_, err = db.readSeeker.Seek(int64(valLen), io.SeekCurrent)
-			if err != nil {
-				return nil, err
-			}
+			entry = new(encoding.Entry)
+			continue
 		}
 	}
+	if entry.IsZeroEntry() {
+		return nil, leveldb.NewNotFoundError(searchKey)
+	} else {
+		return leveldb.Value(entry.Value), nil
+	}
+}
 
-	return value, nil
+func (db *SSTableDB) Has(key leveldb.Key) (bool, error) {
+	_, err := db.Get(key)
+	if err != nil {
+		if errors.As(err, &notFoundError) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func (db *SSTableDB) RangeScan(start leveldb.Key, limit leveldb.Key) (leveldb.Iterator, error) {
+	var (
+		encodingStart = encoding.Key(start)
+		currentEntry  = new(encoding.Entry)
+		err           error
+		bytesRead     int64
+	)
+	if err = db.scanTowards(start); err != nil {
+		return nil, err
+	}
+	for !db.isAtEndOfData() {
+		bytesRead, err = readEntry(db.readSeeker, currentEntry)
+		if err != nil {
+			return nil, err
+		}
+		if currentEntry.Key.Compare(encodingStart) < 0 {
+			continue
+		}
+		// we have found the entry gte our key, let's rewind so Next() returns it
+		_, err := db.readSeeker.Seek(-bytesRead, io.SeekCurrent)
+		if err != nil {
+			return nil, err
+		}
+		break
+	}
+
+	return NewIterator(
+		db.readSeeker,
+		encoding.Key(limit),
+		db.endOfDataOffset,
+	), nil
+}
+
+// scanTowards scans to the key in the sparse index that's closest to searchKey (less than or equal to)
+func (db *SSTableDB) scanTowards(searchKey leveldb.Key) error {
+	startIndex, err := db.dir.offsetFor(searchKey)
+	if err != nil {
+		return err
+	}
+	if _, err := db.readSeeker.Seek(int64(startIndex), io.SeekStart); err != nil {
+		return err
+	}
+	return nil
 }
 
 // isAtEndOfData is a substitute for checking for EOF errors because our file has directory data
 // at the end of it.  The data offset is inferred from the encoding of where the directory starts (that encoding lives
 // at the beginning of the file)
 func (db *SSTableDB) isAtEndOfData() bool {
-	currOffset, _ := db.readSeeker.Seek(0, io.SeekCurrent) // no worry about error in this use-case
+	currOffset, _ := db.readSeeker.Seek(0, io.SeekCurrent) // no risk to get EOF with these parameters
 	return currOffset >= db.endOfDataOffset
 }
 
-func (db *SSTableDB) Has(key leveldb.Key) (bool, error) {
-	//TODO implement me
-	panic("implement me")
+func NewIterator(
+	readSeeker io.ReadSeeker,
+	limit encoding.Key,
+	endOfDataOffset int64,
+) *Iterator {
+	return &Iterator{
+		readSeeker:      readSeeker,
+		limit:           limit,
+		endOfDataOffset: endOfDataOffset,
+		currentEntry:    new(encoding.Entry), // call Next() first
+		err:             nil,
+	}
 }
 
-func (db *SSTableDB) RangeScan(start leveldb.Key, limit leveldb.Key) (leveldb.Iterator, error) {
-	//TODO implement me
-	panic("implement me")
+// Iterator is used for satisfying a RangeScan.  It is similar to the read functions.
+type Iterator struct {
+	readSeeker      io.ReadSeeker
+	limit           encoding.Key
+	endOfDataOffset int64
+	currentEntry    *encoding.Entry // should this start at the preceding entry?
+	err             error
+}
+
+func (i *Iterator) Next() bool {
+	if i.isAtEndOfData() {
+		return false
+	}
+	_, err := readEntry(i.readSeeker, i.currentEntry)
+	if i.currentEntry.Key.Compare(i.limit) > 0 {
+		return false
+	}
+	if err != nil {
+		i.err = err
+		return false
+	}
+	if len(i.currentEntry.Value) == 0 {
+		return i.Next() // don't return tombstoned data
+	}
+	return true
+}
+
+func (i *Iterator) Error() error {
+	return i.err
+}
+
+func (i *Iterator) Key() leveldb.Key {
+	return leveldb.Key(i.currentEntry.Key)
+}
+
+func (i *Iterator) Value() leveldb.Value {
+	return leveldb.Value(i.currentEntry.Value)
+}
+
+func (i *Iterator) isAtEndOfData() bool {
+	currOffset, _ := i.readSeeker.Seek(0, io.SeekCurrent) // no risk to get EOF with these parameters
+	return currOffset > i.endOfDataOffset
+}
+
+// readEntry reads an entry into the supplied pointer and returns how many bytes were read
+// in case the caller needs to "peek" (in which case they can seek backwards by that number of bytes)
+func readEntry(rs io.ReadSeeker, entry *encoding.Entry) (int64, error) {
+	var bytesRead int64
+	keyLen, err := encoding.ReadUint64(rs)
+	bytesRead += 8
+	if err != nil {
+		return bytesRead, err
+	}
+	var key = make(encoding.Key, keyLen)
+	keyBytes, err := io.ReadFull(rs, key)
+	bytesRead += int64(keyBytes)
+	if err != nil {
+		return bytesRead, err
+	}
+	valLen, err := encoding.ReadUint64(rs)
+	bytesRead += 8
+	if err != nil {
+		return bytesRead, err
+	}
+	if valLen == 0 {
+		*entry = encoding.Entry{Key: key, Value: nil}
+		return bytesRead, nil
+	}
+	value, err := encoding.ReadByteSlice(rs, valLen)
+	bytesRead += int64(valLen)
+	if err != nil {
+		return bytesRead, err
+	}
+	*entry = encoding.Entry{
+		Key:   key,
+		Value: value,
+	}
+	return bytesRead, nil
+}
+
+func newSSTableConfig() *ssTableConfig {
+	return &ssTableConfig{sparseIndexThreshold: sparseIndexThreshold}
+}
+
+type ssTableConfig struct {
+	sparseIndexThreshold int
+}
+type ssTableOption func(*ssTableConfig)
+
+func withSparseIndexThreshold(threshold int) ssTableOption {
+	return func(config *ssTableConfig) {
+		config.sparseIndexThreshold = threshold
+	}
 }

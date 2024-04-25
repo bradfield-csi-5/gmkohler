@@ -50,7 +50,7 @@ func NewNotFoundError(key Key) error {
 	return &NotFoundError{key: key}
 }
 
-func (err NotFoundError) Error() string {
+func (err *NotFoundError) Error() string {
 	return fmt.Sprintf("entry not found for key %q", err.key)
 }
 

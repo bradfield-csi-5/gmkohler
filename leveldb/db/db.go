@@ -17,12 +17,6 @@ var (
 	notFoundError *leveldb.NotFoundError
 )
 
-type ReadWriteSeeker interface {
-	io.Reader
-	io.Writer
-	io.Seeker
-}
-
 type db struct {
 	memTable   *skiplist.SkipList
 	tombstones *skiplist.SkipList

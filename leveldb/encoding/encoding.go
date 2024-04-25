@@ -70,6 +70,10 @@ type Entry struct {
 	Value Value
 }
 
+func (e *Entry) IsZeroEntry() bool {
+	return len(e.Key) == 0 && len(e.Value) == 0
+}
+
 func (e *Entry) Encode() ([]byte, error) {
 	// similar to DbOperation.Encode(), not sure if can be DRYed or if it should be
 	var (
