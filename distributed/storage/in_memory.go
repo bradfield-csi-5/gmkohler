@@ -19,6 +19,13 @@ func (s inMemoryStorage) Put(key Key, value Value) (Value, error) {
 	return s[key], nil
 }
 
-func NewInMemoryStorage() Storage {
-	return make(inMemoryStorage)
+func (s inMemoryStorage) Close() error {
+	for k := range s {
+		delete(s, k)
+	}
+	return nil
+}
+
+func NewInMemoryStorage() (Storage, error) {
+	return make(inMemoryStorage), nil
 }

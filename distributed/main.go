@@ -12,13 +12,9 @@ import (
 
 func main() {
 	var (
-		reader  *bufio.Reader   = bufio.NewReader(os.Stdin)
-		writer  *bufio.Writer   = bufio.NewWriter(os.Stdout)
-		db      storage.Storage = storage.NewInMemoryStorage()
-		sigChan                 = make(chan os.Signal)
-		err     error
-		input   string
-		command *Command
+		reader  *bufio.Reader = bufio.NewReader(os.Stdin)
+		writer  *bufio.Writer = bufio.NewWriter(os.Stdout)
+		sigChan               = make(chan os.Signal)
 	)
 
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -32,6 +28,24 @@ func main() {
 		}
 		os.Exit(1)
 	}()
+
+	var (
+		db      storage.Storage
+		err     error
+		input   string
+		command *Command
+	)
+
+	if len(os.Args) > 1 {
+		fileName := os.Args[1]
+		log.Printf("opening test database %q\n", fileName)
+		db, err = storage.NewPersistentStorage(fileName)
+	} else {
+		db, err = storage.NewInMemoryStorage()
+	}
+	if err != nil {
+		log.Fatalf("error intializing storage: %v", err)
+	}
 
 	// REPL
 	for {
@@ -49,7 +63,8 @@ func main() {
 
 		command, err = ParseInput(input)
 		if err != nil {
-			log.Fatalf("error parsing input: %v", err)
+			log.Printf("error parsing input: %v", err)
+			continue
 		}
 
 		var output string
