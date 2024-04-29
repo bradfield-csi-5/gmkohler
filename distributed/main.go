@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"distributed/storage"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -10,11 +12,13 @@ import (
 
 func main() {
 	var (
-		reader  *bufio.Reader = bufio.NewReader(os.Stdin)
-		writer  *bufio.Writer = bufio.NewWriter(os.Stdout)
-		sigChan               = make(chan os.Signal)
+		reader  *bufio.Reader   = bufio.NewReader(os.Stdin)
+		writer  *bufio.Writer   = bufio.NewWriter(os.Stdout)
+		db      storage.Storage = storage.NewInMemoryStorage()
+		sigChan                 = make(chan os.Signal)
 		err     error
 		input   string
+		command *Command
 	)
 
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -29,6 +33,7 @@ func main() {
 		os.Exit(1)
 	}()
 
+	// REPL
 	for {
 		if _, err = writer.WriteString("> "); err != nil {
 			log.Fatalf("error writing to stdout: %v", err)
@@ -36,11 +41,38 @@ func main() {
 		if err = writer.Flush(); err != nil {
 			log.Fatalf("error flushing to stdout: %v", err)
 		}
+
 		input, err = reader.ReadString('\n')
 		if err != nil {
 			log.Fatalf("error reading from stdin: %v", err)
 		}
-		if _, err = writer.WriteString(input); err != nil {
+
+		command, err = ParseInput(input)
+		if err != nil {
+			log.Fatalf("error parsing input: %v", err)
+		}
+
+		var output string
+		switch command.Operation {
+		case Get:
+			value, err := db.Get(command.Key)
+			if err != nil {
+				output = fmt.Sprintf("error getting value: %v\n", err)
+			} else {
+				output = fmt.Sprintf("%s\n", value)
+			}
+		case Put:
+			value, err := db.Put(command.Key, command.Value)
+			if err != nil {
+				output = fmt.Sprintf("error putting value: %v\n", err)
+			} else {
+				output = fmt.Sprintf("%s\n", value)
+			}
+		default: // shouldn't happen because ParseInput ensures we know the operation
+			output = "unknown error: could not recognize operation\n"
+		}
+
+		if _, err = writer.WriteString(output); err != nil {
 			log.Fatalf("error writing to stdout: %v", err)
 		}
 		if err = writer.Flush(); err != nil {
