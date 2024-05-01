@@ -28,16 +28,12 @@ func NewPersistentStorage(filename string) (Storage, error) {
 	}
 
 	return &persistentStorage{
-		file:    file,
-		encoder: gob.NewEncoder(file),
-		decoder: gob.NewDecoder(file),
+		file: file,
 	}, nil
 }
 
 type persistentStorage struct {
-	file    *os.File
-	encoder *gob.Encoder
-	decoder *gob.Decoder
+	file *os.File
 }
 
 func (s *persistentStorage) Close() error {
@@ -66,8 +62,8 @@ func (s *persistentStorage) Put(key Key, value Value) (Value, error) {
 	if err := s.resetFile(); err != nil {
 		return "", err
 	}
-	if err := s.encoder.Encode(entries); err != nil {
-		return "", fmt.Errorf("error encoding value: %w", err)
+	if err := gob.NewEncoder(s.file).Encode(entries); err != nil {
+		return "", fmt.Errorf("error parse value: %w", err)
 	}
 	return value, nil
 }
@@ -76,7 +72,7 @@ func (s *persistentStorage) decode(entriesPtr *map[Key]Value) error {
 	if err := s.resetFile(); err != nil {
 		return err
 	}
-	if err := s.decoder.Decode(entriesPtr); err != nil {
+	if err := gob.NewDecoder(s.file).Decode(entriesPtr); err != nil {
 		if !errors.Is(err, io.EOF) { // assume this means empty file
 			return fmt.Errorf("error decoding file: %w", err)
 		}

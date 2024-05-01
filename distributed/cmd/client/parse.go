@@ -1,7 +1,8 @@
 package main
 
 import (
-	"distributed/storage"
+	"distributed/pkg/networking"
+	"distributed/pkg/storage"
 	"errors"
 	"fmt"
 	"regexp"
@@ -16,47 +17,22 @@ const (
 
 var inputRe = regexp.MustCompile(commandPattern)
 
-type operation int
-
-func (o operation) String() string {
-	switch o {
-	case Get:
-		return "get"
-	case Put:
-		return "put"
-	default:
-		return "unknown"
-	}
-}
-
-type Command struct {
-	Operation operation
-	Key       storage.Key
-	Value     storage.Value
-}
-
-const (
-	unknown operation = iota
-	Get
-	Put
-)
-
-func ParseInput(input string) (*Command, error) {
+func Input(input string) (*networking.Command, error) {
 	results := inputRe.FindStringSubmatch(input)
 	if len(results) == 0 {
 		return nil, errors.New("input is not valid syntax")
 	}
 
 	var (
-		op       operation
+		op       networking.Operation
 		opIdx    int    = inputRe.SubexpIndex(labelOperation)
 		opString string = results[opIdx]
 	)
 	switch {
 	case opString == "get":
-		op = Get
+		op = networking.OpGet
 	case opString == "put":
-		op = Put
+		op = networking.OpPut
 	default:
 		return nil, fmt.Errorf("%q: unrecognized operation", opString)
 	}
@@ -70,7 +46,7 @@ func ParseInput(input string) (*Command, error) {
 		value = storage.Value(results[valueIdx])
 	}
 
-	return &Command{
+	return &networking.Command{
 		Operation: op,
 		Key:       key,
 		Value:     value,

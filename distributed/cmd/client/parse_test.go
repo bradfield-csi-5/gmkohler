@@ -1,14 +1,17 @@
 package main
 
-import "testing"
+import (
+	"distributed/pkg/networking"
+	"testing"
+)
 
 func TestParseInput_Get(t *testing.T) {
-	command, err := ParseInput("get foo\n")
+	command, err := Input("get foo\n")
 	if err != nil {
 		t.Errorf("expceted no error, found %v", err)
 	} else {
-		if command.Operation != Get {
-			t.Errorf("expected command %v, got %v", Get, command.Operation)
+		if command.Operation != networking.OpGet {
+			t.Errorf("expected command %v, got %v", networking.OpGet, command.Operation)
 		}
 		if command.Key != "foo" {
 			t.Errorf("expected key %q, got %q", "foo", command.Key)
@@ -20,12 +23,12 @@ func TestParseInput_Get(t *testing.T) {
 }
 
 func TestParseInput_Put(t *testing.T) {
-	command, err := ParseInput("put spam=eggs\n")
+	command, err := Input("put spam=eggs\n")
 	if err != nil {
 		t.Errorf("expceted no error, found %v", err)
 	} else {
-		if command.Operation != Put {
-			t.Errorf("expected command %v, got %v", Put, command.Operation)
+		if command.Operation != networking.OpPut {
+			t.Errorf("expected command %v, got %v", networking.OpPut, command.Operation)
 		}
 		if command.Key != "spam" {
 			t.Errorf("expected key %q, got %q", "spam", command.Key)
@@ -37,7 +40,7 @@ func TestParseInput_Put(t *testing.T) {
 }
 
 func TestParseInput_Invalid(t *testing.T) {
-	command, err := ParseInput("set spam=eggs\n")
+	command, err := Input("set spam=eggs\n")
 	if err == nil {
 		t.Errorf("expceted error, found command %v", command)
 	}
