@@ -1,7 +1,7 @@
 package main
 
 import (
-	"distributed/pkg/networking"
+	"distributed/pkg/client"
 	"distributed/pkg/storage"
 	"errors"
 	"fmt"
@@ -17,22 +17,22 @@ const (
 
 var inputRe = regexp.MustCompile(commandPattern)
 
-func Input(input string) (*networking.Command, error) {
+func Input(input string) (*client.Command, error) {
 	results := inputRe.FindStringSubmatch(input)
 	if len(results) == 0 {
 		return nil, errors.New("input is not valid syntax")
 	}
 
 	var (
-		op       networking.Operation
+		op       client.Operation
 		opIdx    int    = inputRe.SubexpIndex(labelOperation)
 		opString string = results[opIdx]
 	)
 	switch {
 	case opString == "get":
-		op = networking.OpGet
+		op = client.OpGet
 	case opString == "put":
-		op = networking.OpPut
+		op = client.OpPut
 	default:
 		return nil, fmt.Errorf("%q: unrecognized operation", opString)
 	}
@@ -46,7 +46,7 @@ func Input(input string) (*networking.Command, error) {
 		value = storage.Value(results[valueIdx])
 	}
 
-	return &networking.Command{
+	return &client.Command{
 		Operation: op,
 		Key:       key,
 		Value:     value,

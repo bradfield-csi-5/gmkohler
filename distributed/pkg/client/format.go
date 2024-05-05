@@ -1,4 +1,4 @@
-package networking
+package client
 
 import "distributed/pkg/storage"
 
@@ -21,13 +21,7 @@ type Command struct {
 	Value     storage.Value
 }
 
-type ExecuteCommandResponse struct {
-	Value storage.Value
-	Err   string
-}
-
 const (
-	unknown Operation = iota
-	OpGet
+	OpGet Operation = iota + 1
 	OpPut
 )
