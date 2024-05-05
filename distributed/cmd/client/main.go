@@ -41,7 +41,7 @@ func main() {
 	// REPL
 	var (
 		input   string
-		command *networking.Command
+		command *client.Command
 		output  string
 		value   storage.Value
 	)

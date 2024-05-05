@@ -1,7 +1,7 @@
 package main
 
 import (
-	"distributed/pkg/networking"
+	"distributed/pkg/client"
 	"testing"
 )
 
@@ -10,8 +10,8 @@ func TestParseInput_Get(t *testing.T) {
 	if err != nil {
 		t.Errorf("expceted no error, found %v", err)
 	} else {
-		if command.Operation != networking.OpGet {
-			t.Errorf("expected command %v, got %v", networking.OpGet, command.Operation)
+		if command.Operation != client.OpGet {
+			t.Errorf("expected command %v, got %v", client.OpGet, command.Operation)
 		}
 		if command.Key != "foo" {
 			t.Errorf("expected key %q, got %q", "foo", command.Key)
@@ -27,8 +27,8 @@ func TestParseInput_Put(t *testing.T) {
 	if err != nil {
 		t.Errorf("expceted no error, found %v", err)
 	} else {
-		if command.Operation != networking.OpPut {
-			t.Errorf("expected command %v, got %v", networking.OpPut, command.Operation)
+		if command.Operation != client.OpPut {
+			t.Errorf("expected command %v, got %v", client.OpPut, command.Operation)
 		}
 		if command.Key != "spam" {
 			t.Errorf("expected key %q, got %q", "spam", command.Key)
