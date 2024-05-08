@@ -2,9 +2,10 @@ package main
 
 import (
 	"bufio"
+	"distributed/pkg"
 	"distributed/pkg/client"
 	"distributed/pkg/networking"
-	"distributed/pkg/storage"
+	"distributed/pkg/server/storage"
 	"fmt"
 	"log"
 	"net"
@@ -29,7 +30,11 @@ func main() {
 		os.Exit(1)
 	}(sigChan)
 
-	conn, err := net.Dial(networking.Unix, networking.SocketPath)
+	socketPath, err := networking.SocketPath(pkg.RolePrimary)
+	if err != nil {
+		log.Fatalf("error getting primary socket path: %v", err)
+	}
+	conn, err := net.Dial(networking.Unix, socketPath)
 	if err != nil {
 		log.Fatalf("error establishing connection: %v", err)
 	}

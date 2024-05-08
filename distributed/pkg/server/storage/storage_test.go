@@ -19,7 +19,7 @@ var impls = []impl{
 }
 
 func persistentStorageFactory() (Storage, error) {
-	return NewPersistentStorage(os.TempDir())
+	return NewPersistentStorage(os.TempDir(), primaryFileName)
 }
 
 func closeDb(t *testing.T, db Storage) {

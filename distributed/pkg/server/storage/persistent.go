@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"distributed/pkg"
 	"encoding/gob"
 	"errors"
 	"fmt"
@@ -11,9 +12,21 @@ import (
 
 const (
 	primaryFileName = "primary"
+	replicaFileName = "replica"
 )
 
-func NewPersistentStorage(dirPath string) (Storage, error) {
+func FileName(role pkg.Role) (string, error) {
+	switch role {
+	case pkg.RolePrimary:
+		return primaryFileName, nil
+	case pkg.RoleReplica:
+		return replicaFileName, nil
+	default:
+		return "", fmt.Errorf("unrecognized role %v", role)
+	}
+}
+
+func NewPersistentStorage(dirPath string, filename string) (Storage, error) {
 	if stat, err := os.Stat(dirPath); err == nil {
 		if !stat.IsDir() {
 			return nil, fmt.Errorf("storage/NewPersistentStorage: %s is not a directory", dirPath)
@@ -29,10 +42,10 @@ func NewPersistentStorage(dirPath string) (Storage, error) {
 	} else {
 		return nil, fmt.Errorf("error checking file stats: %w", err)
 	}
-	fileName := filepath.Join(dirPath, primaryFileName)
-	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	fullFilePath := filepath.Join(dirPath, filename)
+	file, err := os.OpenFile(fullFilePath, os.O_RDWR|os.O_CREATE, os.ModePerm)
 	if err != nil {
-		return nil, fmt.Errorf("storage/NewPersistentStorage: %s: error opening file: %w", fileName, err)
+		return nil, fmt.Errorf("storage/NewPersistentStorage: %s: error opening file: %w", fullFilePath, err)
 	}
 
 	return &persistentStorage{

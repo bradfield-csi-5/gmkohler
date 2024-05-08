@@ -2,7 +2,7 @@ package client
 
 import (
 	"distributed/pkg/networking"
-	"distributed/pkg/storage"
+	"distributed/pkg/server/storage"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -20,6 +20,40 @@ func New(conn net.Conn) (*Client, error) {
 	}, nil
 }
 
+// SendRequest is exported so primary servers can relay requests to replicas without having to deal with
+// re-serialization
+func (c *Client) SendRequest(requestPtr *networking.ExecuteCommandRequest) (*networking.ExecuteCommandResponse, error) {
+	encoded, err := proto.Marshal(requestPtr)
+	if err != nil {
+		return nil, fmt.Errorf("SendRequest: error marshalling message: %w", err)
+	}
+	if err := binary.Write(c.conn, binary.LittleEndian, int32(len(encoded))); err != nil {
+		return nil, fmt.Errorf("SendRequest: error writing message length to connection: %w", err)
+	}
+	if _, err := c.conn.Write(encoded); err != nil {
+		return nil, fmt.Errorf("SendRequest: error writing message to connection: %w", err)
+	}
+
+	var (
+		responsePtr   = new(networking.ExecuteCommandResponse)
+		messageLength int32
+	)
+	if err := binary.Read(c.conn, binary.LittleEndian, &messageLength); err != nil {
+		return nil, fmt.Errorf("SendRequest: error reading message length from connection: %w", err)
+	}
+	var responseBuf = make([]byte, messageLength)
+	if _, err := c.conn.Read(responseBuf); err != nil {
+		return nil, fmt.Errorf("SendRequest: error reading message from connection: %w", err)
+	}
+	if err := proto.Unmarshal(responseBuf, responsePtr); err != nil {
+		return nil, fmt.Errorf("SendRequest: error unmarshalling message: %w", err)
+	}
+	return responsePtr, nil
+
+}
+
+// ExecuteCommand is a wrapper for clients to send "domain objects" through the wire; more of a "facade" but will think
+// of the best way to organize this later.
 func (c *Client) ExecuteCommand(command Command) (storage.Value, error) {
 	var requestPtr *networking.ExecuteCommandRequest
 	switch command.Operation {
@@ -41,32 +75,10 @@ func (c *Client) ExecuteCommand(command Command) (storage.Value, error) {
 	default:
 		return "", fmt.Errorf("unrecognized operation %s", command.Operation)
 	}
-	encoded, err := proto.Marshal(requestPtr)
+	responsePtr, err := c.SendRequest(requestPtr)
 	if err != nil {
-		return "", fmt.Errorf("ExecuteCommand: error marshalling message: %w", err)
+		return "", err
 	}
-	if err := binary.Write(c.conn, binary.LittleEndian, int32(len(encoded))); err != nil {
-		return "", fmt.Errorf("ExecuteCommand: error writing message length to connection: %w", err)
-	}
-	if _, err := c.conn.Write(encoded); err != nil {
-		return "", fmt.Errorf("ExecuteCommand: error writing message to connection: %w", err)
-	}
-
-	var (
-		responsePtr   = new(networking.ExecuteCommandResponse)
-		messageLength int32
-	)
-	if err := binary.Read(c.conn, binary.LittleEndian, &messageLength); err != nil {
-		return "", fmt.Errorf("ExecuteCommand: error reading message length from connection: %w", err)
-	}
-	var responseBuf = make([]byte, messageLength)
-	if _, err := c.conn.Read(responseBuf); err != nil {
-		return "", fmt.Errorf("ExecuteCommand: error reading message from connection: %w", err)
-	}
-	if err := proto.Unmarshal(responseBuf, responsePtr); err != nil {
-		return "", fmt.Errorf("ExecuteCommand: error unmarshalling message: %w", err)
-	}
-
 	switch result := responsePtr.Result.(type) {
 	case *networking.ExecuteCommandResponse_Value:
 		return storage.Value(result.Value), nil

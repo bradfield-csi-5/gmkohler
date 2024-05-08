@@ -1,8 +1,9 @@
 package server
 
 import (
+	"distributed/pkg/client"
 	"distributed/pkg/networking"
-	"distributed/pkg/storage"
+	"distributed/pkg/server/storage"
 	"encoding/binary"
 	"fmt"
 	"google.golang.org/protobuf/proto"
@@ -11,14 +12,42 @@ import (
 )
 
 type Server struct {
-	listener net.Listener
-	db       storage.Storage
+	listener       net.Listener
+	db             storage.Storage
+	replicaClients []*client.Client
 }
 
-func New(listener net.Listener, db storage.Storage) (*Server, error) {
+func New(listener net.Listener, db storage.Storage, replicaSocketPaths ...string) (*Server, error) {
+	var replicaClients = make([]*client.Client, len(replicaSocketPaths))
+	if len(replicaSocketPaths) > 0 {
+		for j, replicaSocketPath := range replicaSocketPaths {
+			replicaConn, err := net.Dial(networking.Unix, replicaSocketPath)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"server.New: error connecting to replica %s: %w",
+					replicaSocketPath,
+					err,
+				)
+			}
+			log.Printf("connected to replica at %s", replicaConn.RemoteAddr())
+
+			replicaClient, err := client.New(replicaConn)
+			if err != nil {
+				return nil, fmt.Errorf(
+					"server.New: error building replica client for %s: %w",
+					replicaSocketPath,
+					err,
+				)
+
+			}
+			replicaClients[j] = replicaClient
+		}
+	}
+
 	return &Server{
-		listener: listener,
-		db:       db,
+		listener:       listener,
+		db:             db,
+		replicaClients: replicaClients,
 	}, nil
 }
 
@@ -34,6 +63,7 @@ func (s *Server) Run() {
 }
 
 func (s *Server) handleConnection(conn net.Conn) {
+	log.Printf("handling connection from %s", conn.RemoteAddr())
 	for {
 		var (
 			requestPtr    = new(networking.ExecuteCommandRequest)
@@ -64,6 +94,11 @@ func (s *Server) handleConnection(conn net.Conn) {
 			value, err = s.db.Get(storage.Key(req.Get.Key))
 		case *networking.ExecuteCommandRequest_Put:
 			value, err = s.db.Put(storage.Key(req.Put.Key), storage.Value(req.Put.Value))
+			for _, replica := range s.replicaClients {
+				if _, err := replica.SendRequest(requestPtr); err != nil {
+					log.Printf("error sending request to replica: %v", err)
+				}
+			}
 		default:
 			err = fmt.Errorf("unrecognized operation: %v", req)
 		}
