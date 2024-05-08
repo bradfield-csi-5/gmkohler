@@ -6,25 +6,33 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 )
 
-func NewPersistentStorage(filename string) (Storage, error) {
-	var (
-		err  error
-		file *os.File
-	)
+const (
+	primaryFileName = "primary"
+)
 
-	// TODO: separate fd's for encode/decode?
-	if _, err = os.Stat(filename); err == nil {
-		if file, err = os.OpenFile(filename, os.O_RDWR, os.ModePerm); err != nil {
-			return nil, fmt.Errorf("error opening file: %w", err)
+func NewPersistentStorage(dirPath string) (Storage, error) {
+	if stat, err := os.Stat(dirPath); err == nil {
+		if !stat.IsDir() {
+			return nil, fmt.Errorf("storage/NewPersistentStorage: %s is not a directory", dirPath)
 		}
 	} else if os.IsNotExist(err) {
-		if file, err = os.Create(filename); err != nil {
-			return nil, fmt.Errorf("error creating fiel: %w", err)
+		if err := os.MkdirAll(dirPath, 0755); err != nil {
+			return nil, fmt.Errorf(
+				"storage/NewPersistentStorage: %s: error creating directory: %w",
+				dirPath,
+				err,
+			)
 		}
 	} else {
 		return nil, fmt.Errorf("error checking file stats: %w", err)
+	}
+	fileName := filepath.Join(dirPath, primaryFileName)
+	file, err := os.OpenFile(fileName, os.O_RDWR|os.O_CREATE, os.ModePerm)
+	if err != nil {
+		return nil, fmt.Errorf("storage/NewPersistentStorage: %s: error opening file: %w", fileName, err)
 	}
 
 	return &persistentStorage{

@@ -12,12 +12,17 @@ import (
 	"syscall"
 )
 
-const defaultDbFile = "/tmp/distkv"
+const defaultDbDirectory = "/tmp/distkv"
 
 var dbFile string
 
 func main() {
-	flag.StringVar(&dbFile, "db", defaultDbFile, "path for database file")
+	flag.StringVar(
+		&dbFile,
+		"db",
+		defaultDbDirectory,
+		"directory for database files (primary and replicas)",
+	)
 	flag.Parse()
 
 	var sigChan = make(chan os.Signal)

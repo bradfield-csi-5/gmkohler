@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -18,16 +19,15 @@ var impls = []impl{
 }
 
 func persistentStorageFactory() (Storage, error) {
-	file, err := os.CreateTemp(os.TempDir(), "distributedkv")
-	if err != nil {
-		return nil, fmt.Errorf("error creating temp dir: %w", err)
-	}
-	return NewPersistentStorage(file.Name())
+	return NewPersistentStorage(os.TempDir())
 }
 
 func closeDb(t *testing.T, db Storage) {
 	if err := db.Close(); err != nil {
 		t.Errorf("error closing storage: %v", err)
+	}
+	if err := os.Remove(filepath.Join(os.TempDir(), primaryFileName)); err != nil {
+		t.Log(fmt.Sprintf("error removing DB file: %v", err))
 	}
 }
 
