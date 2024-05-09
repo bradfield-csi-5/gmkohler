@@ -2,20 +2,35 @@ package main
 
 import (
 	"bufio"
-	"distributed/pkg"
 	"distributed/pkg/client"
 	"distributed/pkg/networking"
 	"distributed/pkg/server/storage"
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 )
 
+const (
+	routingSocket      = "routing.sock"
+	defaultDbDirectory = "/tmp/distkv"
+)
+
+var (
+	dbDirectory string
+)
+
+func init() {
+	flag.StringVar(&dbDirectory, "db", defaultDbDirectory, "which db to connect to")
+}
+
 // cmd/client is a REPL for interacting with a cmd/server process
 func main() {
+	flag.Parse()
 	var (
 		reader  = bufio.NewReader(os.Stdin)
 		writer  = bufio.NewWriter(os.Stdout)
@@ -30,10 +45,7 @@ func main() {
 		os.Exit(1)
 	}(sigChan)
 
-	socketPath, err := networking.SocketPath(pkg.RolePrimary)
-	if err != nil {
-		log.Fatalf("error getting primary socket path: %v", err)
-	}
+	socketPath := filepath.Join(dbDirectory, routingSocket)
 	conn, err := net.Dial(networking.Unix, socketPath)
 	if err != nil {
 		log.Fatalf("error establishing connection: %v", err)

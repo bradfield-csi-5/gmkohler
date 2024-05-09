@@ -1,0 +1,13 @@
+// protoc -I=. --go_out=.. ./replication.proto
+syntax = "proto3";
+package distributed;
+
+option go_package = "pkg/networking";
+
+message AddReplicaRequest {
+  string socket_path = 1;
+}
+
+message AddReplicaResponse {
+  string error = 1;
+}
