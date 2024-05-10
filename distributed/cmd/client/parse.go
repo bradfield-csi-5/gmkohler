@@ -2,7 +2,7 @@ package main
 
 import (
 	"distributed/pkg/client"
-	"distributed/pkg/storage"
+	"distributed/pkg/server/storage"
 	"errors"
 	"fmt"
 	"regexp"

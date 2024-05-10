@@ -1,6 +1,8 @@
 package client
 
-import "distributed/pkg/storage"
+import (
+	"distributed/pkg/server/storage"
+)
 
 type Operation int
 
